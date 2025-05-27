@@ -1,6 +1,7 @@
 # Cube Base Defense  Verteidigungsspiel
 
-![Cube Base Defense Gameplay Screenshot (Optionnel)](./screenshot.png) <!-- Remplace par un vrai screenshot si tu en as un -->
+![Cube Base Defense Gameplay Screenshot (Optionnel)](./assts/screenshot1.png) <!-- Remplace par un vrai screenshot si tu en as un -->
+![Cube Base Defense Gameplay Screenshot (Optionnel)](./assts/screenshot2.png)
 
 Cube Base Defense est un jeu de tower defense minimaliste et stimulant développé en HTML, CSS et JavaScript pur. Protégez votre noyau précieux contre des vagues d'ennemis de plus en plus redoutables en plaçant des cubes défensifs, en construisant des tourelles et en utilisant des pouvoirs spéciaux.
 
