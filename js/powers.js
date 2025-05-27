@@ -7,9 +7,10 @@ let activePowersState = [];
 export function initializePowers() {
     activePowersState = Config.POWERS_CONFIG.map(config => ({
         ...config,
-        lastUsedTime: 0, // Prêt à être utilisé
-        usesLeft: config.isUnlocked ? (config.initialUses || 1) : 0, // Si débloqué par défaut, donne des charges
-        isActive: false, // Pour les pouvoirs à durée
+        lastUsedTime: 0,
+        usesLeft: config.isUnlocked ? (config.initialUses || 0) : 0, // Si isUnlocked de base, donner des charges. Sinon 0.
+                                                                    // Les achats via shop ajouteront des charges.
+        isActive: false,
         activeUntil: 0
     }));
 }
@@ -18,12 +19,17 @@ export function getPowersState() {
     return [...activePowersState];
 }
 
-export function unlockPower(powerId, initialUses = 1) {
+export function unlockOrAddChargePower(powerId, chargesToAdd = 1) { // Renommé pour plus de clarté
     const power = activePowersState.find(p => p.id === powerId);
     if (power) {
-        power.isUnlocked = true;
-        power.usesLeft = (power.usesLeft || 0) + initialUses;
-        UI.showNotification(`Pouvoir "${power.name}" obtenu !`, "success");
+        if (!power.isUnlocked) {
+            power.isUnlocked = true;
+            power.usesLeft = chargesToAdd;
+            UI.showNotification(`Pouvoir "${power.name}" débloqué (${chargesToAdd} charge(s)) !`, "success");
+        } else {
+            power.usesLeft = (power.usesLeft || 0) + chargesToAdd;
+            UI.showNotification(`+${chargesToAdd} charge(s) pour "${power.name}" !`, "success");
+        }
         return true;
     }
     return false;
@@ -31,9 +37,11 @@ export function unlockPower(powerId, initialUses = 1) {
 
 export function tryActivatePower(powerId, gameElements, baseCore, gameStats, now) {
     const power = activePowersState.find(p => p.id === powerId);
-    if (!power || !power.isUnlocked || power.usesLeft <= 0) {
-        UI.showNotification("Pouvoir non disponible ou pas de charges.", "warning");
-        return false;
+    if (!power || !power.isUnlocked) {
+        UI.showNotification("Pouvoir non débloqué.", "warning"); return false;
+    }
+    if (power.usesLeft <= 0) {
+        UI.showNotification("Plus de charges pour ce pouvoir.", "warning"); return false;
     }
     if (now - power.lastUsedTime < power.cooldown) {
         const timeLeft = Math.ceil((power.cooldown - (now - power.lastUsedTime)) / 1000);
@@ -42,19 +50,19 @@ export function tryActivatePower(powerId, gameElements, baseCore, gameStats, now
     }
 
     power.lastUsedTime = now;
-    power.usesLeft--; // Ou ne pas décrémenter si c'est un cooldown pur sans charges limitées après achat
+    power.usesLeft--;
 
-    // Appliquer l'effet
     switch (power.id) {
         case 'pushBack':
             gameElements.obstacles.forEach(enemy => {
                 const distX = enemy.x - baseCore.x;
                 const distY = enemy.y - baseCore.y;
                 const distance = Math.hypot(distX, distY);
-                if (distance < power.effectRadius && distance > 0) { // Ne pas affecter les ennemis sur le noyau
-                    const pushFactor = power.pushStrength / distance;
-                    enemy.x += distX * pushFactor;
-                    enemy.y += distY * pushFactor;
+                if (distance < power.effectRadius && distance > 0.1) { // distance > 0.1 pour éviter division par zéro
+                    const pushAngle = Math.atan2(distY, distX); // Angle depuis le noyau vers l'ennemi
+                    // On veut repousser dans la direction opposée à l'ennemi par rapport au noyau, ou directement depuis le noyau
+                    enemy.x += Math.cos(pushAngle) * power.pushStrength;
+                    enemy.y += Math.sin(pushAngle) * power.pushStrength;
                 }
             });
             UI.showNotification("Onde de Choc activée !", "info");
@@ -62,24 +70,30 @@ export function tryActivatePower(powerId, gameElements, baseCore, gameStats, now
         case 'turretOvercharge':
             power.isActive = true;
             power.activeUntil = now + power.duration;
-            // Le bonus sera appliqué dans la logique de tir des tourelles/noyau
             UI.showNotification("Surcharge des tourelles activée !", "info");
             break;
     }
     return true;
 }
 
-// Appeler cette fonction dans la boucle update de main.js
 export function updateActivePowers(now, gameStats) {
+    let wasOvercharged = gameStats.isTurretOvercharged;
+    gameStats.isTurretOvercharged = false; // Réinitialiser avant de vérifier
+
     activePowersState.forEach(power => {
         if (power.isActive && now > power.activeUntil) {
             power.isActive = false;
-            // Retirer l'effet si nécessaire (ex: remettre le fireRate à la normale)
             if (power.id === 'turretOvercharge') {
                 UI.showNotification("Surcharge des tourelles terminée.", "info");
             }
         }
+        // Mettre à jour gameStats si des pouvoirs actifs modifient des stats globales
+        if (power.id === 'turretOvercharge' && power.isActive) {
+            gameStats.isTurretOvercharged = true;
+        }
     });
-    // Mettre à jour gameStats si les pouvoirs actifs modifient des stats globales
-    gameStats.isTurretOvercharged = activePowersState.some(p => p.id === 'turretOvercharge' && p.isActive);
+    // Si l'état de surcharge a changé, on pourrait forcer une mise à jour UI des pouvoirs
+    // if (wasOvercharged !== gameStats.isTurretOvercharged) {
+    //     // main.js appellera UI.renderPowersUI de toute façon
+    // }
 }

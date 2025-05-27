@@ -36,7 +36,7 @@ export function tryPurchaseUpgrade(upgradeId, gameStats) {
     }
     gameStats.cash -= cost;
     upgrade.currentLevel++;
-    UI.showNotification(`${upgrade.name} amélioré au Niv. ${upgrade.currentLevel} !`, "success");
+    //UI.showNotification(`${upgrade.name} amélioré au Niv. ${upgrade.currentLevel} !`, "success");
     return true;
 }
 
