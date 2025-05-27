@@ -76,18 +76,3 @@ Cube Base Defense est un jeu de tower defense minimaliste et stimulant développ
 ## 🤝 Contribution
 
 Les suggestions et contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou à proposer une pull request.
-
-## 📄 Licence
-
-Ce projet est sous licence [NOM_DE_LA_LICENCE_SI_TU_EN_AS_UNE, ex: MIT]. Voir le fichier `LICENSE` pour plus de détails (si applicable).
-
----
-
-N'hésite pas à personnaliser ce README :
-*   **Screenshot :** Ajoute une capture d'écran attrayante du jeu. Nomme-la `screenshot.png` (ou un autre nom) et place-la à la racine du projet, puis ajuste le lien dans le README.
-*   **URL du Repo :** Remplace `[URL_DE_TON_REPO]` par l'URL réelle de ton dépôt GitHub.
-*   **Licence :** Si tu souhaites ajouter une licence open source (comme MIT, Apache 2.0, GPL), crée un fichier `LICENSE` avec le texte de la licence et mentionne-la.
-*   **TODO :** Adapte la liste des améliorations futures à tes propres idées.
-*   **Contact/Auteur :** Tu peux ajouter une section avec tes informations si tu le souhaites.
-
-Bonne continuation avec ton projet !
