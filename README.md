@@ -41,7 +41,7 @@ Cube Base Defense est un jeu de tower defense minimaliste et stimulant développ
 
 ## 🛠️ Comment Lancer le Jeu Localement
 
-1.  Clonez ce dépôt : `git clone (https://github.com/Lumosity23/survival_cube.git)`
+1.  Clonez ce dépôt : `git clone https://github.com/Lumosity23/survival_cube.git`
 2.  Naviguez jusqu'au dossier du projet : `cd cube-base-defense`
 3.  Comme le jeu utilise des modules JavaScript (ES6 Modules), il doit être servi via un serveur HTTP local pour fonctionner correctement (l'ouverture directe de `index.html` dans le navigateur peut causer des erreurs CORS).
     *   **Avec Node.js et `http-server` (recommandé) :**
