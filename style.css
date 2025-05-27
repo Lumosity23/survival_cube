@@ -1,0 +1,180 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a1a; font-family: 'Courier New', monospace; overflow: hidden; color: #e0e0e0; }
+#gameContainer { position: relative; width: 100vw; height: 100vh; }
+#gameCanvas { background: #2a2a2a; cursor: crosshair; display: block; }
+
+.overlay-menu {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(20, 20, 20, 0.97);
+    display: none; /* Initially hidden, JS will control display */
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    text-align: center;
+}
+#menu { display: flex; } /* Main menu visible by default */
+#gameOver { /* display: none; */ }
+#pauseMenu { /* display: none; */ }
+
+#shopMenu {
+    display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 90%; max-width: 700px; height: 80%; max-height: 600px;
+    background: rgba(30, 30, 30, 0.98); border: 2px solid #606060;
+    flex-direction: column; justify-content: flex-start; align-items: center;
+    z-index: 110; padding: 20px; overflow-y: auto;
+}
+
+.title { font-size: 48px; margin-bottom: 30px; color: #f0f0f0; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); letter-spacing: 3px; }
+.subtitle { font-size: 18px; margin-bottom: 40px; color: #b0b0b0; max-width: 600px; line-height: 1.6; }
+.btn {
+    padding: 12px 25px; background: #404040; border: 2px solid #606060; color: #f0f0f0;
+    font-family: inherit; font-size: 16px; cursor: pointer; margin: 8px;
+    transition: all 0.3s ease; letter-spacing: 1px; min-width: 200px; text-align: center;
+}
+.btn:hover { background: #505050; border-color: #808080; transform: translateY(-2px); }
+.btn:disabled { background: #303030; border-color: #404040; color: #707070; cursor: not-allowed; transform: none; }
+
+#ui {
+    position: absolute; top: 10px; left: 10px; color: #e0e0e0; font-size: 15px; z-index: 10;
+    background: rgba(40, 40, 40, 0.9); padding: 12px; border: 1px solid #606060; min-width: 230px;
+}
+#objectives {
+    position: absolute; top: 10px; right: 10px; color: #e0e0e0; font-size: 13px; z-index: 10;
+    background: rgba(40, 40, 40, 0.9); padding: 12px; border: 1px solid #606060; max-width: 280px;
+}
+.objective { margin: 7px 0; padding: 7px; background: rgba(60, 60, 60, 0.5); border-left: 3px solid #808080; font-size: 12px; }
+.objective.completed { background: rgba(80, 120, 80, 0.3); border-left-color: #a0d0a0; color: #c0e0c0; text-decoration: line-through; }
+
+#notificationContainer { position: fixed; bottom: 15px; right: 15px; z-index: 200; display: flex; flex-direction: column-reverse; align-items: flex-end; }
+.notification {
+    background: rgba(40, 40, 40, 0.95); border: 2px solid #808080; padding: 12px 18px; color: #f0f0f0;
+    font-size: 13px; text-align: left; margin-top: 8px; min-width: 230px;
+    animation: slideInFadeOut 5s ease-in-out forwards; border-left: 4px solid #606060;
+}
+.notification.info { border-left-color: #60a0f0; } .notification.success { border-left-color: #60f0a0; }
+.notification.warning { border-left-color: #f0a060; } .notification.error { border-left-color: #f06060; }
+@keyframes slideInFadeOut { 0%{opacity:0;transform:translateX(100%);} 15%{opacity:1;transform:translateX(0);} 85%{opacity:1;transform:translateX(0);} 100%{opacity:0;transform:translateX(100%);} }
+
+#instructions {
+    position: absolute; bottom: 10px; left: 10px; color: #a0a0a0; font-size: 12px; text-align: left;
+    background: rgba(40, 40, 40, 0.8); padding: 10px; border: 1px solid #606060; max-width: 280px; z-index: 5;
+}
+.score { font-size: 32px; margin: 15px 0; color: #f0f0f0; }
+.rule { margin: 4px 0; padding: 4px 0; border-bottom: 1px solid #404040; } .rule:last-child { border-bottom: none; }
+
+#gameControls { position: absolute; top: 10px; right: 310px; /* Adjust based on objectives width */ z-index: 50; display: flex; }
+#gameControls .btn { min-width: auto; padding: 8px 12px; margin-left: 8px; font-size: 14px; }
+
+.shop-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; margin: 4px 0; background: #333; border: 1px solid #555; width: 100%; }
+.shop-item-info { flex-grow: 1; } .shop-item-name { font-size: 15px; color: #e0e0e0;}
+.shop-item-desc { font-size: 11px; color: #a0a0a0;} .shop-item-cost { font-size: 13px; color: #f0c060; margin-left: 8px;}
+.shop-item .btn {min-width: 100px; padding: 6px 10px; font-size: 13px; margin: 0 0 0 10px;}
+
+#highScoresContainer { margin-top: 30px; width: 80%; max-width: 500px; }
+#highScoresTable { width: 100%; border-collapse: collapse; }
+#highScoresTable th, #highScoresTable td { border: 1px solid #555; padding: 8px; text-align: left; }
+#highScoresTable th { background-color: #333; }
+
+.base-health-bar-container {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 25px;
+    background-color: #555;
+    border: 2px solid #888;
+    border-radius: 5px;
+    z-index: 15;
+}
+.base-health-bar {
+    width: 100%;
+    height: 100%;
+    background-color: #4CAF50; /* Green */
+    border-radius: 3px;
+    transition: width 0.3s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: white;
+    text-shadow: 1px 1px 1px black;
+}
+
+#inGameUpgrades {
+    position: absolute;
+    /* top: 200px;  Adapte la position */
+    /* right: 10px; */
+    /* Ou intègre-le dans la section #ui à gauche */
+    bottom: 10px; /* Exemple: en bas à droite */
+    right: 10px;
+    color: #e0e0e0;
+    font-size: 13px;
+    z-index: 10;
+    background: rgba(40, 40, 40, 0.9);
+    padding: 12px;
+    border: 1px solid #606060;
+    max-width: 280px; /* Similaire aux objectifs */
+}
+.upgrade-item {
+    margin: 7px 0;
+    padding: 8px;
+    background: rgba(50, 50, 70, 0.7); /* Couleur distincte */
+    border-left: 3px solid #a0a0f0;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.upgrade-item:hover {
+    background-color: rgba(70, 70, 90, 0.8);
+}
+.upgrade-item.maxed {
+    background-color: rgba(70, 70, 70, 0.5);
+    border-left-color: #777;
+    cursor: default;
+    color: #aaa;
+}
+.upgrade-item-name { font-weight: bold; }
+.upgrade-item-desc { font-size: 11px; color: #c0c0c0; margin-top: 3px; }
+.upgrade-item-cost { font-size: 11px; color: #f0c060; margin-top: 3px; }
+.upgrade-item-level { font-size: 10px; color: #909090; }
+
+/* style.css */
+#powersPanel {
+    position: absolute;
+    bottom: 10px; /* Ou autre position */
+    /* left: 10px; ou right: 10px; */
+    left: 300px; /* Exemple à côté des instructions */
+    color: #e0e0e0;
+    font-size: 13px;
+    z-index: 10;
+    background: rgba(40, 40, 40, 0.9);
+    padding: 12px;
+    border: 1px solid #606060;
+    max-width: 280px;
+    display: none; /* Initialement caché, JS gère la visibilité */
+    flex-direction: column; /* Pour que les items s'empilent */
+}
+.power-item { /* Style pour chaque pouvoir dans la liste */
+    margin: 7px 0;
+    padding: 8px;
+    background: rgba(70, 50, 70, 0.7); /* Couleur distincte pour les pouvoirs */
+    border-left: 3px solid #d0a0f0;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.power-item:hover {
+    background-color: rgba(90, 70, 90, 0.8);
+}
+.power-item.on-cooldown, .power-item.no-charges { /* Classes pour états spécifiques */
+    background-color: rgba(70, 70, 70, 0.5);
+    border-left-color: #777;
+    cursor: default;
+    color: #aaa;
+}
+.power-item.active {
+    border-left-color: #ffeb3b; /* Jaune quand actif */
+    background-color: rgba(90, 90, 50, 0.8);
+}

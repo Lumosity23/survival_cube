@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cube Base Defense</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #1a1a1a; font-family: 'Courier New', monospace; overflow: hidden; color: #e0e0e0; }
+        #gameContainer { position: relative; width: 100vw; height: 100vh; }
+        #gameCanvas { background: #2a2a2a; cursor: crosshair; display: block; }
+
+        .overlay-menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(20, 20, 20, 0.97); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; text-align: center;}
+        
+        #gameOver { display: none; /* Extends overlay-menu */ }
+        #pauseMenu { display: none; /* Extends overlay-menu */ }
+        #shopMenu {
+            display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 90%; max-width: 700px; height: 80%; max-height: 600px;
+            background: rgba(30, 30, 30, 0.98); border: 2px solid #606060;
+            flex-direction: column; justify-content: flex-start; align-items: center;
+            z-index: 110; padding: 20px; overflow-y: auto;
+        }
+
+        .title { font-size: 48px; margin-bottom: 30px; color: #f0f0f0; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); letter-spacing: 3px; }
+        .subtitle { font-size: 18px; margin-bottom: 40px; color: #b0b0b0; max-width: 600px; line-height: 1.6; }
+        .btn {
+            padding: 12px 25px; background: #404040; border: 2px solid #606060; color: #f0f0f0;
+            font-family: inherit; font-size: 16px; cursor: pointer; margin: 8px;
+            transition: all 0.3s ease; letter-spacing: 1px; min-width: 200px; text-align: center;
+        }
+        .btn:hover { background: #505050; border-color: #808080; transform: translateY(-2px); }
+        .btn:disabled { background: #303030; border-color: #404040; color: #707070; cursor: not-allowed; transform: none; }
+
+        #ui {
+            position: absolute; top: 10px; left: 10px; color: #e0e0e0; font-size: 15px; z-index: 10;
+            background: rgba(40, 40, 40, 0.9); padding: 12px; border: 1px solid #606060; min-width: 230px;
+        }
+        #objectives {
+            position: absolute; top: 10px; right: 10px; color: #e0e0e0; font-size: 13px; z-index: 10;
+            background: rgba(40, 40, 40, 0.9); padding: 12px; border: 1px solid #606060; max-width: 280px;
+        }
+        .objective { margin: 7px 0; padding: 7px; background: rgba(60, 60, 60, 0.5); border-left: 3px solid #808080; font-size: 12px; }
+        .objective.completed { background: rgba(80, 120, 80, 0.3); border-left-color: #a0d0a0; color: #c0e0c0; text-decoration: line-through; }
+
+        #notificationContainer { position: fixed; bottom: 15px; right: 15px; z-index: 200; display: flex; flex-direction: column-reverse; align-items: flex-end; }
+        .notification {
+            background: rgba(40, 40, 40, 0.95); border: 2px solid #808080; padding: 12px 18px; color: #f0f0f0;
+            font-size: 13px; text-align: left; margin-top: 8px; min-width: 230px;
+            animation: slideInFadeOut 5s ease-in-out forwards; border-left: 4px solid #606060;
+        }
+        .notification.info { border-left-color: #60a0f0; } .notification.success { border-left-color: #60f0a0; }
+        .notification.warning { border-left-color: #f0a060; } .notification.error { border-left-color: #f06060; }
+        @keyframes slideInFadeOut { 0%{opacity:0;transform:translateX(100%);} 15%{opacity:1;transform:translateX(0);} 85%{opacity:1;transform:translateX(0);} 100%{opacity:0;transform:translateX(100%);} }
+
+        #instructions {
+            position: absolute; bottom: 10px; left: 10px; color: #a0a0a0; font-size: 12px; text-align: left;
+            background: rgba(40, 40, 40, 0.8); padding: 10px; border: 1px solid #606060; max-width: 280px; z-index: 5;
+        }
+        .score { font-size: 32px; margin: 15px 0; color: #f0f0f0; }
+        .rule { margin: 4px 0; padding: 4px 0; border-bottom: 1px solid #404040; } .rule:last-child { border-bottom: none; }
+
+        #gameControls { position: absolute; top: 10px; right: 310px; /* Adjust based on objectives width */ z-index: 50; display: flex; }
+        #gameControls .btn { min-width: auto; padding: 8px 12px; margin-left: 8px; font-size: 14px; }
+
+        .shop-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; margin: 4px 0; background: #333; border: 1px solid #555; width: 100%; }
+        .shop-item-info { flex-grow: 1; } .shop-item-name { font-size: 15px; color: #e0e0e0;}
+        .shop-item-desc { font-size: 11px; color: #a0a0a0;} .shop-item-cost { font-size: 13px; color: #f0c060; margin-left: 8px;}
+        .shop-item .btn {min-width: 100px; padding: 6px 10px; font-size: 13px; margin: 0 0 0 10px;}
+
+        #highScoresContainer { margin-top: 30px; width: 80%; max-width: 500px; }
+        #highScoresTable { width: 100%; border-collapse: collapse; }
+        #highScoresTable th, #highScoresTable td { border: 1px solid #555; padding: 8px; text-align: left; }
+        #highScoresTable th { background-color: #333; }
+
+        .base-health-bar-container {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 25px;
+            background-color: #555;
+            border: 2px solid #888;
+            border-radius: 5px;
+            z-index: 15;
+        }
+        .base-health-bar {
+            width: 100%;
+            height: 100%;
+            background-color: #4CAF50; /* Green */
+            border-radius: 3px;
+            transition: width 0.3s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: white;
+            text-shadow: 1px 1px 1px black;
+        }
+
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="menu" class="overlay-menu">
+            <div class="title">CUBE BASE DEFENSE</div>
+            <div class="subtitle">
+                Protégez votre Noyau Précieux des vagues d'ennemis !<br>
+                Construisez, améliorez et survivez aussi longtemps que possible.
+            </div>
+            <button class="btn" onclick="startGame()">NOUVELLE PARTIE</button>
+            <button class="btn" onclick="showRules()">RÈGLES</button>
+            <div id="highScoresContainer">
+                <h3 style="margin-bottom: 10px;">MEILLEURS SCORES</h3>
+                <table id="highScoresTable">
+                    <thead><tr><th>#</th><th>Score</th><th>Vague</th><th>Temps</th></tr></thead>
+                    <tbody id="highScoresBody">
+                        <!-- Scores will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="gameOver" class="overlay-menu">
+            <div class="title">NOYAU DÉTRUIT</div>
+            <div class="score" id="finalScore">Score: 0</div>
+            <div class="subtitle" id="gameOverText"></div>
+            <button class="btn" onclick="startGame()">REJOUER</button>
+            <button class="btn" onclick="goToMenu()">MENU PRINCIPAL</button>
+        </div>
+
+        <div id="pauseMenu" class="overlay-menu">
+            <div class="title">PAUSE</div>
+            <button class="btn" onclick="resumeGame()">REPRENDRE</button>
+            <button class="btn" onclick="openShop(true)">SHOP (Pause)</button>
+            <button class="btn" onclick="goToMenu()">MENU PRINCIPAL</button>
+        </div>
+
+        <div id="shopMenu">
+            <div class="title" style="font-size: 32px; margin-bottom: 10px;">SHOP</div>
+            <div style="margin-bottom: 15px; font-size: 16px;">Cash: <span id="shopCashDisplay">0</span> 💲</div>
+            <div id="shopItemsContainer" style="width: 100%;"></div>
+            <button class="btn" onclick="closeShop()" style="margin-top: 15px;">FERMER</button>
+        </div>
+
+        <div id="ui" style="display: none;">
+            <div class="rule"><strong>Cubes:</strong> <span id="cubeCount">15</span></div>
+            <div class="rule"><strong>Score:</strong> <span id="score">0</span></div>
+            <div class="rule"><strong>Vague:</strong> <span id="wave">1</span></div>
+            <div class="rule"><strong>Cash:</strong> <span id="cashDisplay">0</span> 💲</div>
+            <div class="rule"><strong>Temps:</strong> <span id="survivalTime">0</span>s</div>
+        </div>
+        <div class="base-health-bar-container" style="display: none;">
+            <div id="baseHealthBar" class="base-health-bar">Noyau: 100%</div>
+        </div>
+
+
+        <div id="objectives" style="display: none;">
+            <div style="font-weight: bold; margin-bottom: 8px; color: #f0f0f0;">🎯 OBJECTIFS</div>
+            <div id="objectiveList"></div>
+        </div>
+
+        <div id="instructions" style="display: none;">
+            <div><strong>CONTRÔLES:</strong></div>
+            <div>Clic G: Placer/Construire</div>
+            <div>Clic D: Supprimer Cube</div>
+            <div>WASD: Déplacer Caméra</div>
+            <div>P: Pause</div>
+            <div><br><strong>ASTUCES:</strong></div>
+            <div>• Les obstacles ont des PV.</div>
+            <div>• Achetez des améliorations au Shop!</div>
+        </div>
+
+        <div id="gameControls" style="display: none;">
+            <button id="shopButton" class="btn" onclick="openShop(false)">SHOP</button>
+            <button id="pauseButton" class="btn" onclick="togglePause()">PAUSE</button>
+        </div>
+        <div id="notificationContainer"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const notificationContainer = document.getElementById('notificationContainer');
+        
+        let gameState = 'menu'; // menu, playing, paused, shop, gameOver
+        let camera = { x: 0, y: 0 };
+        let gridSize = 40;
+        let gameElements = { // Holds all dynamic game objects
+            cubes: new Map(),      // key: "x,y", value: { hp: X, type: 'standard'/'reinforced' }
+            buildings: new Map(),  // key: "x,y", value: { type: 'generator', lastGenTime: Date.now(), ... }
+            obstacles: [],
+            powerUps: []
+        };
+        const BASE_MAX_HEALTH = 250;
+        let baseCore = { x: 0, y: 0, health: BASE_MAX_HEALTH, radius: gridSize * 0.6 };
+
+        let gameStats = {}; // Reset at each game start
+
+        let keys = {};
+        let lastObstacleSpawn = 0;
+        let animationFrame;
+        let activeObjectives = [];
+        
+        const MAX_ACTIVE_OBJECTIVES = 3;
+        const HIGH_SCORES_KEY = 'cubeBaseDefenseHighScores';
+        let highScores = JSON.parse(localStorage.getItem(HIGH_SCORES_KEY)) || [];
+
+        // --- OBJECTIVE DEFINITIONS ---
+        const objectiveDifficultyScalar = (wave) => Math.pow(wave, 0.5) * Math.log1p(wave); // Softer curve initially, then steeper
+        const allObjectivesTemplates = [
+            { idBase: 'survive_X_sec', textFn: (val) => `Survivre ${val}s`, targetFn: (wave) => Math.floor(60 + objectiveDifficultyScalar(wave) * 30), current: () => gameStats.survivalTime, reward: 'cash', rewardAmountFn: (val) => Math.floor(val * 0.5 + gameStats.wave * 10), type: 'time' },
+            { idBase: 'destroy_X_obstacles', textFn: (val) => `Détruire ${val} ennemis`, targetFn: (wave) => Math.floor(15 + objectiveDifficultyScalar(wave) * 10), current: () => gameStats.obstaclesDestroyed, reward: 'cubes', rewardAmountFn: (val) => Math.floor(val/5 + gameStats.wave), type: 'kill' },
+            { idBase: 'earn_X_cash', textFn: (val) => `Gagner ${val}💲`, targetFn: (wave) => Math.floor(150 + objectiveDifficultyScalar(wave) * 100), current: () => gameStats.cashEarnedThisGame, reward: 'cubes', rewardAmountFn: (val) => Math.floor(val/50 + gameStats.wave * 2), type: 'eco' },
+            { idBase: 'reach_wave_X', textFn: (val) => `Atteindre Vague ${val}`, targetFn: (wave) => wave + 2 + Math.floor(wave/3), current: () => gameStats.wave, reward: 'cash', rewardAmountFn: (val) => val * 25 + gameStats.wave * 15, type: 'wave' },
+        ];
+        
+        // --- SHOP ITEMS (In-Game Purchases) ---
+        let shopItems = [ // Will be function to reset costs/levels each game if needed or use persistent upgrades for other things
+            { id: 'reinforcedCube', name: 'Cube Renforcé (Passif)', desc: 'Vos cubes ont +50% PV.', cost: 150, purchased: false, effect: () => { gameStats.cubeHpMultiplier = 1.5; showNotification("Vos cubes sont plus solides!", "success");} },
+            { id: 'cubeGenerator', name: 'Générateur de Cubes', desc: 'Placez-le pour +1 cube/10s.', cost: 200, type: 'building', buildingData: { type: 'generator', productionRate: 1, interval: 10000, icon: '⚙️', color: '#ADD8E6' } },
+            { id: 'repairBase', name: 'Réparer Noyau (+50 PV)', desc: 'Soigne le noyau.', cost: 75, effect: () => { baseCore.health = Math.min(BASE_MAX_HEALTH, baseCore.health + 50); updateBaseHealthBar(); showNotification("Noyau réparé!", "success"); } },
+            // { id: 'turret', name: 'Tourelle Auto', desc: 'Tire sur les ennemis proches.', cost: 350, type: 'building', buildingData: { type: 'turret', range: 150, damage: 5, fireRate: 1000, icon: '🎯', color: '#FFB347' } }, // Example for future
+        ];
+        let currentBuildingToPlace = null; // Stores data of building selected from shop
+
+
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+
+        function startGame() {
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('ui').style.display = 'block';
+            document.getElementById('objectives').style.display = 'block';
+            document.getElementById('instructions').style.display = 'block';
+            document.getElementById('gameControls').style.display = 'flex';
+            document.querySelector('.base-health-bar-container').style.display = 'block';
+            gameState = 'playing';
+            resetGame();
+            initializeObjectives();
+            updateBaseHealthBar();
+            gameLoop();
+        }
+
+        function resetGame() {
+            gameElements.cubes.clear();
+            gameElements.buildings.clear();
+            gameElements.obstacles = [];
+            gameElements.powerUps = [];
+            baseCore.health = BASE_MAX_HEALTH;
+            currentBuildingToPlace = null;
+
+            gameStats = { 
+                score: 0, wave: 1, cubesLeft: 20, cash: 50, // Start with some cash
+                startTime: Date.now(), survivalTime: 0,
+                obstaclesDestroyed: 0, cashEarnedThisGame: 50, cubesPlaced: 0,
+                cubeHpMultiplier: 1, // For reinforced cube upgrade
+            };
+            // Reset shop item states if they are per-game
+            shopItems.forEach(item => {
+                if (item.hasOwnProperty('purchased')) item.purchased = false;
+                if (item.hasOwnProperty('level')) item.level = 0; // if items have levels
+            });
+
+            camera = { x: 0, y: 0 };
+            lastObstacleSpawn = Date.now();
+            updateUI();
+            updateBaseHealthBar();
+        }
+
+        function gameLoop() {
+            if (gameState === 'gameOver') {
+                if (animationFrame) cancelAnimationFrame(animationFrame);
+                return;
+            }
+            if (gameState === 'playing') {
+                const now = Date.now();
+                update(now);
+            } else if (gameState === 'paused' || gameState === 'shop') {
+                // Game is paused, but we might want to render UI updates or shop
+            }
+            render(); // Always render to show paused screen, shop, etc.
+            animationFrame = requestAnimationFrame(gameLoop);
+        }
+
+        function update(now) {
+            gameStats.survivalTime = Math.floor((now - gameStats.startTime) / 1000);
+            handleCameraMovement();
+
+            const timeDifficulty = Math.floor(gameStats.survivalTime / 25);
+            const currentDifficulty = gameStats.wave + timeDifficulty;
+            
+            // Obstacle Spawning
+            const spawnRate = Math.max(2000 - currentDifficulty * 75, 300);
+            if (now - lastObstacleSpawn > spawnRate) {
+                const obstacleCount = 1 + Math.floor(currentDifficulty / 4);
+                for (let i = 0; i < obstacleCount; i++) spawnObstacle(currentDifficulty);
+                lastObstacleSpawn = now;
+            }
+
+            // Power-up Spawning (less frequent now, focus on shop)
+            if (Math.random() < 0.001 + gameStats.survivalTime * 0.000005) spawnPowerUp();
+            
+            // Building Updates (e.g., Generators)
+            gameElements.buildings.forEach(building => {
+                if (building.type === 'generator' && now - building.lastGenTime > building.interval) {
+                    gameStats.cubesLeft += building.productionRate;
+                    building.lastGenTime = now;
+                    showNotification(`+${building.productionRate} 🧊 du générateur`, "info");
+                }
+                // Add turret logic here if implemented
+            });
+
+            // Obstacle Movement & Collision
+            gameElements.obstacles.forEach((obstacle, obsIdx) => {
+                obstacle.x += obstacle.vx;
+                obstacle.y += obstacle.vy;
+
+                // Collision with Base Core
+                const distToBase = Math.hypot(obstacle.x - baseCore.x, obstacle.y - baseCore.y);
+                if (distToBase < obstacle.radius + baseCore.radius) {
+                    baseCore.health -= obstacle.damage;
+                    gameElements.obstacles.splice(obsIdx, 1); // Obstacle sacrifices itself
+                    updateBaseHealthBar();
+                    if (baseCore.health <= 0) { endGame("Noyau détruit par un ennemi !"); return; }
+                    return; // to next obstacle
+                }
+
+                // Collision with Cubes
+                const gridX = Math.floor(obstacle.x / gridSize);
+                const gridY = Math.floor(obstacle.y / gridSize);
+                const key = `${gridX},${gridY}`;
+
+                if (gameElements.cubes.has(key)) {
+                    let cube = gameElements.cubes.get(key);
+                    const damageToCube = obstacle.damage; // Obstacle damages cube
+                    const damageToObstacle = cube.type === 'reinforced' ? 20 : 10; // Cube damages obstacle
+
+                    cube.hp -= damageToCube;
+                    obstacle.hp -= damageToObstacle;
+
+                    if (cube.hp <= 0) gameElements.cubes.delete(key);
+                    if (obstacle.hp <= 0) {
+                        gameElements.obstacles.splice(obsIdx, 1);
+                        gameStats.score += obstacle.scoreValue;
+                        gameStats.cash += obstacle.cashValue;
+                        gameStats.cashEarnedThisGame += obstacle.cashValue;
+                        gameStats.obstaclesDestroyed++;
+                    }
+                    return; // to next obstacle
+                }
+                
+                // Collision with other Buildings (if they can be attacked)
+                // Similar logic to cubes, check gameElements.buildings
+
+                // Remove off-screen obstacles
+                if (Math.abs(obstacle.x - camera.x) > canvas.width * 1.5 || Math.abs(obstacle.y - camera.y) > canvas.height * 1.5) {
+                    gameElements.obstacles.splice(obsIdx, 1);
+                }
+            });
+
+
+            // Power-up Collection
+            gameElements.powerUps.forEach((pu, puIdx) => {
+                // Power-ups are collected by camera passing over them (player doesn't exist)
+                const distToCamera = Math.hypot(pu.x - camera.x, pu.y - camera.y);
+                if (distToCamera < pu.radius + 20) { // 20 is approx camera/cursor radius for collection
+                    collectPowerUp(pu);
+                    gameElements.powerUps.splice(puIdx, 1);
+                }
+                if (Date.now() - pu.spawnTime > 15000) gameElements.powerUps.splice(puIdx, 1); // Despawn
+            });
+
+            // Wave Progression
+            const newWave = Math.floor(gameStats.survivalTime / 40) + 1; // Waves last 40s
+            if (newWave > gameStats.wave) {
+                gameStats.wave = newWave;
+                gameStats.cubesLeft += 5 + Math.floor(newWave / 3);
+                gameStats.cash += 25 + newWave * 5;
+                gameStats.cashEarnedThisGame += 25 + newWave * 5;
+                showNotification(`🌊 VAGUE ${newWave} ! +${5 + Math.floor(newWave / 3)} Cubes, +${25 + newWave * 5}💲`, "info");
+            }
+
+            gameStats.score += Math.floor(currentDifficulty / 20); 
+            checkObjectives();
+            updateUI();
+        }
+
+        function handleCameraMovement() {
+            const speed = 5;
+            let newCamX = camera.x;
+            let newCamY = camera.y;
+
+            if (keys['w'] || keys['W']) newCamY -= speed;
+            if (keys['s'] || keys['S']) newCamY += speed;
+            if (keys['a'] || keys['A']) newCamX -= speed;
+            if (keys['d'] || keys['D']) newCamX += speed;
+
+            // Collision detection for camera against cubes
+            // Check the 4 corners of a small bounding box around the camera center
+            const camRadius = gridSize / 3; // Approx radius for collision
+            const pointsToTest = [
+                {x: newCamX - camRadius, y: newCamY - camRadius}, {x: newCamX + camRadius, y: newCamY - camRadius},
+                {x: newCamX - camRadius, y: newCamY + camRadius}, {x: newCamX + camRadius, y: newCamY + camRadius},
+                {x: newCamX, y: newCamY} // center
+            ];
+
+            let canMoveX = true;
+            let canMoveY = true;
+
+            for (const point of pointsToTest) {
+                const gridX = Math.floor(point.x / gridSize);
+                const gridY = Math.floor(point.y / gridSize);
+                const key = `${gridX},${gridY}`;
+                if (gameElements.cubes.has(key) || gameElements.buildings.has(key)) {
+                    // Check if proposed X move causes collision
+                    const testXGrid = Math.floor(newCamX / gridSize);
+                    if (Math.floor(point.x / gridSize) === testXGrid && Math.floor(camera.y/gridSize) !== gridY) { /* primarily y collision */ }
+                    else if (camera.x !== newCamX) canMoveX = false;
+
+                     // Check if proposed Y move causes collision
+                    const testYGrid = Math.floor(newCamY / gridSize);
+                     if (Math.floor(point.y / gridSize) === testYGrid && Math.floor(camera.x/gridSize) !== gridX) { /* primarily x collision */ }
+                    else if (camera.y !== newCamY) canMoveY = false;
+                }
+            }
+            if (canMoveX) camera.x = newCamX;
+            if (canMoveY) camera.y = newCamY;
+        }
+
+
+        function spawnObstacle(difficulty = 1) {
+            const side = Math.floor(Math.random() * 4);
+            let x, y, vx, vy;
+            let baseHp = 20 + difficulty * 5 * (1 + gameStats.wave * 0.1); // HP scales significantly
+            let baseDamage = 5 + Math.floor(difficulty / 2) + Math.floor(gameStats.wave * 0.5);
+            let radius = 10 + Math.random() * 5 + difficulty / 3;
+            let color = `rgb(80,30,30)`; // Darker red
+            let scoreValue = 10 + difficulty;
+            let cashValue = 2 + Math.floor(difficulty/2);
+            let specialType = null;
+
+            const randSpecial = Math.random();
+            if (randSpecial < 0.03 + difficulty * 0.0015) { // Giant
+                specialType = 'giant'; baseHp *= 2.5; baseDamage *= 1.5; radius *= 1.8; color = `rgb(150,40,40)`; scoreValue *=2; cashValue*=2;
+            } else if (randSpecial < 0.10 + difficulty * 0.004) { // Fast
+                specialType = 'fast'; baseHp *= 0.7; radius *= 0.8; color = `rgb(80,60,100)`; scoreValue = Math.floor(scoreValue*0.8);
+            }
+            
+            const baseSpeed = (specialType === 'fast' ? 2.2 : 0.8) + difficulty * 0.05 * (1 + gameStats.wave * 0.02);
+            let speedVar = Math.random() * baseSpeed * (specialType === 'fast' ? 1.2 : 0.8);
+            if (specialType === 'giant') speedVar *= 0.5; // Giants are slower
+
+            // Target the base more directly
+            const angleToBase = Math.atan2(baseCore.y - (camera.y + (Math.random()-0.5)*canvas.height/2), baseCore.x - (camera.x + (Math.random()-0.5)*canvas.width/2));
+
+            switch (side) { // Spawn further out
+                case 0: x = camera.x + (Math.random()-0.5)*canvas.width*1.2; y = camera.y - canvas.height*0.7; break;
+                case 1: x = camera.x + canvas.width*0.7; y = camera.y + (Math.random()-0.5)*canvas.height*1.2; break;
+                case 2: x = camera.x + (Math.random()-0.5)*canvas.width*1.2; y = camera.y + canvas.height*0.7; break;
+                case 3: x = camera.x - canvas.width*0.7; y = camera.y + (Math.random()-0.5)*canvas.height*1.2; break;
+            }
+            // More direct path towards base, with some spread
+            const spreadAngle = (Math.random() - 0.5) * Math.PI / 3; // Spread of 60 degrees
+            vx = Math.cos(angleToBase + spreadAngle) * (baseSpeed + speedVar);
+            vy = Math.sin(angleToBase + spreadAngle) * (baseSpeed + speedVar);
+
+
+            gameElements.obstacles.push({ x, y, vx, vy, hp: baseHp, maxHp: baseHp, damage: baseDamage, radius, color, specialType, scoreValue, cashValue });
+        }
+
+        function render() {
+            ctx.fillStyle = '#2a2a2a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.save(); // Save context for camera transform
+            ctx.translate(canvas.width / 2 - camera.x, canvas.height / 2 - camera.y);
+
+            // Grille
+            ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1;
+            const viewBounds = {
+                minX: camera.x - canvas.width/2 - gridSize, maxX: camera.x + canvas.width/2 + gridSize,
+                minY: camera.y - canvas.height/2 - gridSize, maxY: camera.y + canvas.height/2 + gridSize,
+            };
+            const startGridX = Math.floor(viewBounds.minX / gridSize) * gridSize;
+            const endGridX = Math.ceil(viewBounds.maxX / gridSize) * gridSize;
+            const startGridY = Math.floor(viewBounds.minY / gridSize) * gridSize;
+            const endGridY = Math.ceil(viewBounds.maxY / gridSize) * gridSize;
+
+            for (let gx = startGridX; gx < endGridX; gx += gridSize) {
+                ctx.beginPath(); ctx.moveTo(gx, viewBounds.minY); ctx.lineTo(gx, viewBounds.maxY); ctx.stroke();
+            }
+            for (let gy = startGridY; gy < endGridY; gy += gridSize) {
+                ctx.beginPath(); ctx.moveTo(viewBounds.minX, gy); ctx.lineTo(viewBounds.maxX, gy); ctx.stroke();
+            }
+
+            // Base Core
+            ctx.fillStyle = baseCore.health > BASE_MAX_HEALTH * 0.6 ? '#40E0D0' : (baseCore.health > BASE_MAX_HEALTH * 0.3 ? '#FFD700' : '#FF6347');
+            ctx.beginPath(); ctx.arc(baseCore.x, baseCore.y, baseCore.radius, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3; ctx.stroke();
+            ctx.fillStyle = 'white'; ctx.font = '12px Courier New'; ctx.textAlign = 'center';
+            ctx.fillText('CORE', baseCore.x, baseCore.y + 4);
+
+
+            // Cubes
+            gameElements.cubes.forEach((cube, key) => {
+                const [gridX, gridY] = key.split(',').map(Number);
+                const cubeScreenX = gridX * gridSize; const cubeScreenY = gridY * gridSize;
+                 if (cubeScreenX < viewBounds.maxX && cubeScreenX + gridSize > viewBounds.minX &&
+                    cubeScreenY < viewBounds.maxY && cubeScreenY + gridSize > viewBounds.minY) {
+                    ctx.fillStyle = cube.type === 'reinforced' ? '#A9A9A9' : '#d0d0d0'; // Darker for reinforced
+                    ctx.strokeStyle = '#909090'; ctx.lineWidth = 2;
+                    ctx.fillRect(cubeScreenX, cubeScreenY, gridSize, gridSize);
+                    ctx.strokeRect(cubeScreenX, cubeScreenY, gridSize, gridSize);
+                    // Cube HP bar (optional)
+                    // const hpPercent = cube.hp / (cube.type === 'reinforced' ? 15 * gameStats.cubeHpMultiplier : 10 * gameStats.cubeHpMultiplier);
+                    // ctx.fillStyle = 'green';
+                    // ctx.fillRect(cubeScreenX + 2, cubeScreenY + gridSize - 7, (gridSize - 4) * hpPercent, 5);
+                }
+            });
+            
+            // Buildings
+            gameElements.buildings.forEach((building, key) => {
+                const [gridX, gridY] = key.split(',').map(Number);
+                const buildingScreenX = gridX * gridSize + gridSize / 2; // Center of grid cell
+                const buildingScreenY = gridY * gridSize + gridSize / 2;
+                 if (buildingScreenX < viewBounds.maxX + gridSize && buildingScreenX > viewBounds.minX - gridSize &&
+                    buildingScreenY < viewBounds.maxY + gridSize && buildingScreenY > viewBounds.minY - gridSize) {
+                    ctx.fillStyle = building.color || '#00CED1'; // Default color if not specified
+                    ctx.beginPath(); ctx.arc(buildingScreenX, buildingScreenY, gridSize * 0.4, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
+                    if (building.icon) {
+                        ctx.fillStyle = 'black'; ctx.font = `${gridSize*0.4}px Arial`; ctx.textAlign = 'center';
+                        ctx.fillText(building.icon, buildingScreenX, buildingScreenY + gridSize * 0.15);
+                    }
+                }
+            });
+
+
+            // Obstacles
+            gameElements.obstacles.forEach(obstacle => {
+                if (obstacle.x < viewBounds.maxX + obstacle.radius && obstacle.x > viewBounds.minX - obstacle.radius &&
+                    obstacle.y < viewBounds.maxY + obstacle.radius && obstacle.y > viewBounds.minY - obstacle.radius) {
+                    ctx.fillStyle = obstacle.color;
+                    ctx.beginPath(); ctx.arc(obstacle.x, obstacle.y, obstacle.radius, 0, Math.PI * 2); ctx.fill();
+                    // Obstacle HP bar
+                    const hpPercent = obstacle.hp / obstacle.maxHp;
+                    ctx.fillStyle = hpPercent > 0.6 ? 'lightgreen' : hpPercent > 0.3 ? 'yellow' : 'red';
+                    ctx.fillRect(obstacle.x - obstacle.radius, obstacle.y - obstacle.radius - 8, obstacle.radius * 2 * hpPercent, 5);
+                    ctx.strokeStyle = 'rgba(50,50,50,0.7)'; ctx.lineWidth = 1;
+                    ctx.strokeRect(obstacle.x - obstacle.radius, obstacle.y - obstacle.radius - 8, obstacle.radius * 2, 5);
+                }
+            });
+
+            // Power-ups
+            gameElements.powerUps.forEach(pu => {
+                if (pu.x < viewBounds.maxX + pu.radius && pu.x > viewBounds.minX - pu.radius &&
+                    pu.y < viewBounds.maxY + pu.radius && pu.y > viewBounds.minY - pu.radius) {
+                    ctx.fillStyle = pu.color; ctx.beginPath(); ctx.arc(pu.x, pu.y, pu.radius, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.stroke();
+                    ctx.fillStyle = '#2a2a2a'; ctx.font = `${pu.radius*0.8}px Arial`; ctx.textAlign = 'center';
+                    ctx.fillText(pu.icon, pu.x, pu.y + pu.radius * 0.25);
+                }
+            });
+
+            // Ghost for building placement
+            if (currentBuildingToPlace && (gameState === 'playing' || gameState === 'shop')) {
+                const mouseWorld = getMouseWorldPos(lastMousePos); // Assumes lastMousePos is stored
+                if (mouseWorld) {
+                    const gridX = Math.floor(mouseWorld.x / gridSize);
+                    const gridY = Math.floor(mouseWorld.y / gridSize);
+                    const key = `${gridX},${gridY}`;
+                    const canPlace = !gameElements.cubes.has(key) && !gameElements.buildings.has(key) && !(gridX === 0 && gridY === 0);
+
+                    ctx.globalAlpha = 0.5;
+                    ctx.fillStyle = canPlace ? currentBuildingToPlace.buildingData.color : 'red';
+                    ctx.beginPath();
+                    ctx.arc(gridX * gridSize + gridSize / 2, gridY * gridSize + gridSize / 2, gridSize * 0.4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+
+            ctx.restore(); // Restore context from camera transform
+
+            // Player's aiming reticle (center of screen, always visible on top of translated world)
+            ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(canvas.width/2 - 10, canvas.height/2); ctx.lineTo(canvas.width/2 + 10, canvas.height/2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(canvas.width/2, canvas.height/2 - 10); ctx.lineTo(canvas.width/2, canvas.height/2 + 10); ctx.stroke();
+
+        }
+        let lastMousePos = { x:0, y:0 }; // For building placement ghost
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            lastMousePos.x = e.clientX - rect.left;
+            lastMousePos.y = e.clientY - rect.top;
+        });
+
+
+        function updateUI() {
+            document.getElementById('cubeCount').textContent = gameStats.cubesLeft;
+            document.getElementById('score').textContent = gameStats.score;
+            document.getElementById('wave').textContent = gameStats.wave;
+            document.getElementById('cashDisplay').textContent = gameStats.cash;
+            document.getElementById('survivalTime').textContent = gameStats.survivalTime;
+            updateObjectiveDisplay();
+        }
+        function updateBaseHealthBar() {
+            const healthPercent = Math.max(0, (baseCore.health / BASE_MAX_HEALTH) * 100);
+            const bar = document.getElementById('baseHealthBar');
+            bar.style.width = healthPercent + '%';
+            bar.textContent = `Noyau: ${healthPercent.toFixed(0)}%`;
+            bar.style.backgroundColor = healthPercent > 60 ? '#4CAF50' : healthPercent > 30 ? '#FFC107' : '#F44336';
+        }
+
+
+        function endGame(reason = "Votre base a été submergée.") {
+            if (gameState === 'gameOver') return; // Prevent multiple calls
+            gameState = 'gameOver';
+            document.getElementById('gameOver').style.display = 'flex';
+            ['ui', 'objectives', 'instructions', 'gameControls'].forEach(id => document.getElementById(id).style.display = 'none');
+            document.querySelector('.base-health-bar-container').style.display = 'none';
+
+            document.getElementById('finalScore').textContent = `Score: ${gameStats.score}`;
+            document.getElementById('gameOverText').textContent = `${reason} Vague Atteinte: ${gameStats.wave}. Temps Survécu: ${gameStats.survivalTime}s.`;
+            
+            saveHighScore(gameStats.score, gameStats.wave, gameStats.survivalTime);
+            displayHighScores(); // Update menu scores
+            if (animationFrame) cancelAnimationFrame(animationFrame);
+        }
+
+        function saveHighScore(score, wave, time) {
+            highScores.push({ score, wave, time, date: new Date().toISOString().slice(0,10) });
+            highScores.sort((a, b) => b.score - a.score || b.wave - a.wave || b.time - a.time); // Sort by score, then wave, then time
+            highScores = highScores.slice(0, 10); // Keep top 10
+            localStorage.setItem(HIGH_SCORES_KEY, JSON.stringify(highScores));
+        }
+
+        function displayHighScores() {
+            const tbody = document.getElementById('highScoresBody');
+            tbody.innerHTML = '';
+            if (highScores.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Aucun score enregistré.</td></tr>';
+                return;
+            }
+            highScores.forEach((s, index) => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = index + 1;
+                row.insertCell().textContent = s.score;
+                row.insertCell().textContent = s.wave;
+                row.insertCell().textContent = s.time + 's';
+            });
+        }
+
+
+        function restartGame() { document.getElementById('gameOver').style.display = 'none'; startGame(); }
+        function goToMenu() {
+            ['gameOver', 'pauseMenu', 'shopMenu', 'ui', 'objectives', 'instructions', 'gameControls'].forEach(id => document.getElementById(id).style.display = 'none');
+            document.querySelector('.base-health-bar-container').style.display = 'none';
+            document.getElementById('menu').style.display = 'flex';
+            gameState = 'menu';
+            displayHighScores();
+            if (animationFrame) cancelAnimationFrame(animationFrame);
+        }
+
+        function spawnPowerUp() {
+            const types = [
+                { icon: '🧊', color: '#c0c0f0', type: 'cubes', amount: 10 + gameStats.wave },
+                { icon: '💲', color: '#f0f0c0', type: 'cash', amount: 30 + gameStats.wave * 5 },
+                { icon: '🛠️', color: '#c0f0c0', type: 'base_heal', amount: Math.floor(BASE_MAX_HEALTH * 0.1) }, // Heal 10% of max base HP
+            ];
+            const type = types[Math.floor(Math.random() * types.length)];
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 150 + Math.random() * 250; // Closer spawn
+            gameElements.powerUps.push({
+                x: camera.x + Math.cos(angle) * distance, y: camera.y + Math.sin(angle) * distance,
+                radius: 12, ...type, spawnTime: Date.now()
+            });
+        }
+        function collectPowerUp(pu) {
+            let message = "";
+            switch (pu.type) {
+                case 'cubes': gameStats.cubesLeft += pu.amount; message = `🧊 +${pu.amount} Cubes !`; break;
+                case 'cash': gameStats.cash += pu.amount; gameStats.cashEarnedThisGame += pu.amount; message = `💲 +${pu.amount} Cash !`; break;
+                case 'base_heal': baseCore.health = Math.min(BASE_MAX_HEALTH, baseCore.health + pu.amount); updateBaseHealthBar(); message = `🛠️ Noyau réparé +${pu.amount} PV !`; break;
+            }
+            showNotification(message, "success");
+        }
+
+        function showNotification(text, type = "info") {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`; notification.textContent = text;
+            notificationContainer.appendChild(notification);
+            while (notificationContainer.children.length > 5) notificationContainer.removeChild(notificationContainer.firstChild);
+            setTimeout(() => { if (notificationContainer.contains(notification)) notificationContainer.removeChild(notification); }, 4900);
+        }
+        
+        // --- OBJECTIVES LOGIC ---
+        function initializeObjectives() {
+            activeObjectives = [];
+            while(activeObjectives.length < MAX_ACTIVE_OBJECTIVES) addRandomObjective();
+        }
+        function addRandomObjective() { /* ... (largely same as before, ensure current() functions are correct) ... */ 
+            if (activeObjectives.length >= MAX_ACTIVE_OBJECTIVES) return;
+            let availableTemplates = allObjectivesTemplates.filter(tmpl => !activeObjectives.some(actObj => actObj.id.startsWith(tmpl.idBase)));
+            if (availableTemplates.length === 0) availableTemplates = allObjectivesTemplates;
+            const template = availableTemplates[Math.floor(Math.random() * availableTemplates.length)];
+            const targetValue = template.targetFn(gameStats.wave);
+            const rewardAmount = template.rewardAmountFn(targetValue);
+            activeObjectives.push({
+                id: `${template.idBase}_${Date.now()}_${Math.random()}`, text: template.textFn(targetValue),
+                target: targetValue, current: template.current, completed: false,
+                reward: template.reward, rewardAmount: rewardAmount
+            });
+        }
+        function checkObjectives() { /* ... (largely same, ensure rewards are correct: cash/cubes) ... */
+            let anObjectiveCompleted = false;
+            activeObjectives.forEach(obj => {
+                if (!obj.completed && obj.current() >= obj.target) {
+                    obj.completed = true; anObjectiveCompleted = true; let rewardMsg = "";
+                    switch (obj.reward) {
+                        case 'cubes': gameStats.cubesLeft += obj.rewardAmount; rewardMsg = `+${obj.rewardAmount} 🧊`; break;
+                        case 'cash': gameStats.cash += obj.rewardAmount; gameStats.cashEarnedThisGame += obj.rewardAmount; rewardMsg = `+${obj.rewardAmount}💲`; break;
+                    }
+                    showNotification(`🎯 Objectif: ${obj.text.substring(0,25)}... (${rewardMsg})`, "success");
+                }
+            });
+            if(anObjectiveCompleted){
+                activeObjectives = activeObjectives.filter(obj => !obj.completed);
+                while(activeObjectives.length < MAX_ACTIVE_OBJECTIVES) addRandomObjective();
+            }
+        }
+        function updateObjectiveDisplay() { /* ... (same as before) ... */
+            const objectiveList = document.getElementById('objectiveList');
+            if (!objectiveList) return; objectiveList.innerHTML = '';
+            activeObjectives.forEach(obj => {
+                const div = document.createElement('div');
+                div.className = 'objective' + (obj.completed ? ' completed' : '');
+                const progress = Math.min(obj.current(), obj.target);
+                div.innerHTML = `<div>${obj.text}</div><div style="font-size: 10px; color: #a0a0a0;">${progress.toFixed(0)}/${obj.target.toFixed(0)}</div>`;
+                objectiveList.appendChild(div);
+            });
+        }
+        
+        // --- PAUSE & SHOP LOGIC ---
+        function togglePause() {
+            if (gameState === 'playing') pauseGame();
+            else if (gameState === 'paused') resumeGame();
+        }
+        function pauseGame() {
+            if (gameState !== 'playing') return;
+            gameState = 'paused';
+            document.getElementById('pauseMenu').style.display = 'flex';
+            currentBuildingToPlace = null; // Clear any pending building placement
+        }
+        function resumeGame() {
+            if (gameState !== 'paused' && gameState !== 'shop') return;
+            gameState = 'playing';
+            document.getElementById('pauseMenu').style.display = 'none';
+            document.getElementById('shopMenu').style.display = 'none';
+            currentBuildingToPlace = null;
+        }
+        function openShop(isFromPauseMenu) {
+            if (gameState !== 'playing' && gameState !== 'paused') return;
+            if (!isFromPauseMenu && gameState === 'playing') { // Shop opened directly from game
+                 gameState = 'shop'; // This implies game is paused but shop is open
+            } else if (isFromPauseMenu && gameState === 'paused') { // Shop opened from pause menu
+                 gameState = 'shop';
+                 document.getElementById('pauseMenu').style.display = 'none';
+            } else { return; } // Should not happen
+
+            document.getElementById('shopMenu').style.display = 'flex';
+            document.getElementById('shopCashDisplay').textContent = gameStats.cash;
+            renderShopItems();
+        }
+        function closeShop() {
+            if (gameState !== 'shop') return;
+            document.getElementById('shopMenu').style.display = 'none';
+            currentBuildingToPlace = null; // Cancel building placement
+            // Decide where to return: if opened from game, return to game, if from pause, return to pause
+            // For simplicity, always return to 'playing' if it was playing, or 'paused' if it was paused.
+            // The openShop function now handles the state transition into 'shop' properly.
+            // So, if we were 'shop' (meaning game was effectively paused), resume to 'playing'
+            // This means the "SHOP" button in game will pause and open shop, close returns to game.
+            // Pause Menu -> Shop -> Close returns to Pause Menu.
+            // To simplify, let's make "Close Shop" always try to resume game if it was active, or go to pause menu if opened from there.
+            // Let's track how shop was opened
+            if (document.getElementById('pauseMenu').style.display === 'flex') { // This is a bit hacky, better to store entry point
+                gameState = 'paused'; // return to pause menu
+            } else {
+                gameState = 'playing'; // return to game
+            }
+             if (gameState === 'playing' && animationFrame === null) requestAnimationFrame(gameLoop); // ensure loop restarts
+        }
+
+        function renderShopItems() {
+            const container = document.getElementById('shopItemsContainer'); container.innerHTML = '';
+            shopItems.forEach(item => {
+                const itemDiv = document.createElement('div'); itemDiv.className = 'shop-item';
+                let btnText = `Acheter (${item.cost}💲)`;
+                let btnDisabled = gameStats.cash < item.cost || (item.hasOwnProperty('purchased') && item.purchased);
+                if (item.hasOwnProperty('purchased') && item.purchased) btnText = "Acheté";
+                
+                itemDiv.innerHTML = `
+                    <div class="shop-item-info">
+                        <div class="shop-item-name">${item.name}</div>
+                        <div class="shop-item-desc">${item.desc}</div>
+                    </div>
+                    <button class="btn shop-buy-btn" data-itemid="${item.id}" ${btnDisabled ? 'disabled' : ''}>${btnText}</button>`;
+                container.appendChild(itemDiv);
+            });
+            document.querySelectorAll('.shop-buy-btn').forEach(button => button.addEventListener('click', (e) => buyShopItem(e.currentTarget.dataset.itemid)));
+        }
+        function buyShopItem(itemId) {
+            const item = shopItems.find(i => i.id === itemId);
+            if (!item || gameStats.cash < item.cost || (item.hasOwnProperty('purchased') && item.purchased)) return;
+
+            gameStats.cash -= item.cost;
+            if (item.type === 'building') {
+                currentBuildingToPlace = item; // Set this to be placed on next click
+                showNotification(`Choisissez où placer: ${item.name}`, "info");
+                closeShop(); // Close shop to allow placement
+                // gameState will be 'playing' after closeShop if opened from game controls
+            } else {
+                item.effect(); // Apply immediate effect
+                if (item.hasOwnProperty('purchased')) item.purchased = true;
+            }
+            document.getElementById('shopCashDisplay').textContent = gameStats.cash;
+            updateUI(); renderShopItems();
+        }
+
+
+        function showRules() { /* ... (Update with new mechanics: base, obstacle HP, etc.) ... */
+            alert(`RÈGLES - CUBE BASE DEFENSE:
+🎯 OBJECTIF: Protégez le Noyau Précieux au centre de la carte !
+Si le Noyau est détruit, la partie est finie.
+
+🔧 GAMEPLAY:
+• Clic Gauche: Placer un cube (si aucun bâtiment n'est sélectionné) ou placer le bâtiment sélectionné du Shop.
+• Clic Droit: Détruire un cube (récupère 1 cube).
+• WASD: Déplacer la caméra. Vous ne pouvez pas traverser vos propres constructions.
+• P: Mettre le jeu en Pause.
+• Shop (en jeu ou via Pause): Achetez des améliorations et des bâtiments avec le Cash gagné.
+
+💣 ENNEMIS:
+• Les ennemis ont des points de vie et infligent des dégâts à vos cubes, bâtiments et au Noyau.
+• Détruire des ennemis rapporte du Score et du Cash.
+
+📈 PROGRESSION:
+• Survivez aux vagues pour gagner des cubes et du Cash bonus.
+• Complétez des objectifs pour des récompenses.
+• Utilisez le Shop pour renforcer vos défenses PENDANT la partie.
+
+Bonne chance, Commandant !`);
+        }
+        
+        function getMouseWorldPos(mouseEvent) {
+            if(!mouseEvent || typeof mouseEvent.x === 'undefined') return null; // Use last stored if no event passed
+            const rect = canvas.getBoundingClientRect();
+            // mouseEvent here is assumed to be {x, y} relative to canvas, not window
+            return {
+                x: mouseEvent.x - canvas.width / 2 + camera.x,
+                y: mouseEvent.y - canvas.height / 2 + camera.y
+            };
+        }
+
+
+        // --- EVENT LISTENERS ---
+        canvas.addEventListener('click', (e) => {
+            if (gameState !== 'playing' && gameState !== 'shop') return; // Allow clicks if shop is open for placement
+            if (currentBuildingToPlace && (gameState === 'playing' || gameState === 'shop')) { // gameState might be 'shop' but we are placing
+                const worldPos = getMouseWorldPos({x: e.clientX - canvas.getBoundingClientRect().left, y: e.clientY - canvas.getBoundingClientRect().top});
+                const gridX = Math.floor(worldPos.x / gridSize);
+                const gridY = Math.floor(worldPos.y / gridSize);
+                const key = `${gridX},${gridY}`;
+
+                if (!gameElements.cubes.has(key) && !gameElements.buildings.has(key) && !(gridX === baseCore.x/gridSize && gridY === baseCore.y/gridSize)) {
+                    gameElements.buildings.set(key, { 
+                        ...currentBuildingToPlace.buildingData, // Copy base data
+                        hp: currentBuildingToPlace.buildingData.hp || 100, // Default HP if not specified
+                        maxHp: currentBuildingToPlace.buildingData.maxHp || 100,
+                        lastGenTime: Date.now() // For generators
+                    });
+                    showNotification(`${currentBuildingToPlace.name} construit !`, "success");
+                    currentBuildingToPlace = null;
+                    if(gameState === 'shop') resumeGame(); // if shop was open only for placement, resume.
+                } else {
+                    showNotification("Impossible de construire ici !", "warning");
+                }
+            } else if (gameState === 'playing') { // Standard cube placement
+                const worldPos = getMouseWorldPos({x: e.clientX - canvas.getBoundingClientRect().left, y: e.clientY - canvas.getBoundingClientRect().top});
+                const gridX = Math.floor(worldPos.x / gridSize);
+                const gridY = Math.floor(worldPos.y / gridSize);
+                const key = `${gridX},${gridY}`;
+                
+                if (gridX === 0 && gridY === 0) { // Base Core position in grid coords
+                    showNotification("Impossible de construire sur le Noyau !", "warning"); return;
+                }
+                if (!gameElements.cubes.has(key) && !gameElements.buildings.has(key) && gameStats.cubesLeft > 0) {
+                    const CUBE_BASE_HP = 10;
+                    gameElements.cubes.set(key, { 
+                        hp: CUBE_BASE_HP * gameStats.cubeHpMultiplier, 
+                        maxHp: CUBE_BASE_HP * gameStats.cubeHpMultiplier,
+                        type: gameStats.cubeHpMultiplier > 1 ? 'reinforced' : 'standard'
+                    });
+                    gameStats.cubesLeft--; gameStats.cubesPlaced++;
+                }
+            }
+            updateUI();
+        });
+
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if (gameState !== 'playing') return;
+            if (currentBuildingToPlace) { // Cancel building placement with right click
+                currentBuildingToPlace = null;
+                showNotification("Placement de bâtiment annulé.", "info");
+                return;
+            }
+            const worldPos = getMouseWorldPos({x: e.clientX - canvas.getBoundingClientRect().left, y: e.clientY - canvas.getBoundingClientRect().top});
+            const gridX = Math.floor(worldPos.x / gridSize); const gridY = Math.floor(worldPos.y / gridSize);
+            const key = `${gridX},${gridY}`;
+            if (gameElements.cubes.has(key)) {
+                gameElements.cubes.delete(key); gameStats.cubesLeft++; // Give cube back
+            } else if (gameElements.buildings.has(key)) {
+                // For now, don't allow selling buildings, or implement cost refund
+                showNotification("Impossible de supprimer ce bâtiment directement.", "warning");
+            }
+            updateUI();
+        });
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true; // Store keys in lowercase
+            if (e.key.toLowerCase() === 'p') {
+                if (gameState === 'playing' || gameState === 'paused') togglePause();
+            }
+            if (e.key.toLowerCase() === 'escape') { // Escape key functionality
+                if (currentBuildingToPlace) {
+                    currentBuildingToPlace = null;
+                    showNotification("Placement annulé.", "info");
+                } else if (gameState === 'shop') {
+                    closeShop();
+                } else if (gameState === 'paused') {
+                    resumeGame();
+                } else if (gameState === 'playing') {
+                    pauseGame();
+                }
+            }
+        });
+        window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- INITIALIZATION ---
+        resizeCanvas();
+        goToMenu(); // Start with menu to show high scores first
+    </script>
+</body>
+</html>
