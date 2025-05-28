@@ -32,10 +32,13 @@ export const objectiveDifficultyScalar = (wave) => wave * 0.8 + Math.pow(Math.ma
 
 export const ALL_OBJECTIVES_TEMPLATES = [
     {
-        idBase: 'survive_X_sec', textFn: (val) => `Survivre ${val}s`,
-        targetFn: (wave) => Math.floor(50 + (wave * 8) + objectiveDifficultyScalar(wave) * 12),
-        currentKey: 'survivalTime', reward: 'cash',
-        rewardAmountFn: (val, wave) => Math.floor(val * 0.15 + wave * 8)
+        idBase: 'survive_X_sec',
+        textFn: (val) => `Survivre ${val}s de plus`, // Texte pour un delta
+        // targetFn retourne maintenant le *temps supplémentaire* à survivre
+        targetFn: (wave, currentTotalSurvivalTimeIgnored) => Math.floor(WAVE_DURATION * (1.2 + wave * 0.15) + objectiveDifficultyScalar(wave) * 4),
+        currentKey: 'survivalTime', // Toujours utilisé pour le temps total, mais la progression est calculée différemment
+        reward: 'cash',
+        rewardAmountFn: (val, wave) => Math.floor(val * 0.15 + wave * 6)
     },
     {
         idBase: 'destroy_X_obstacles', textFn: (val) => `Détruire ${val} ennemis`,

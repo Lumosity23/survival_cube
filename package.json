@@ -1,0 +1,26 @@
+{
+  "name": "cube-base-defense",
+  "version": "1.0.0",
+  "description": "Un jeu de tower defense en HTML, CSS et JavaScript.",
+  "main": "main_electron.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "package-win": "electron-packager . cube-base-defense --platform=win32 --arch=x64 --out=release-builds --overwrite --asar --icon=icon.ico",
+    "package-mac": "electron-packager . cube-base-defense --platform=darwin --arch=x64 --out=release-builds --overwrite --asar --icon=icon.icns",
+    "package-linux": "electron-packager . cube-base-defense --platform=linux --arch=x64 --out=release-builds --overwrite --asar"
+  },
+  "keywords": [
+    "game",
+    "tower-defense",
+    "html",
+    "javascript",
+    "canvas"
+  ],
+  "author": "Lumosity23",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^36.3.1",
+    "electron-packager": "^17.1.2"
+  }
+}

@@ -260,13 +260,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const newWave = Math.floor(gameStats.survivalTime / Config.WAVE_DURATION) + 1;
-        if (newWave > gameStats.wave) {
+            if (newWave > gameStats.wave) {
             gameStats.wave = newWave;
             gameStats.cubesLeft += 5 + Math.floor(newWave / 3);
             const cashBonus = 25 + newWave * 5;
             gameStats.cash += cashBonus;
             gameStats.cashEarnedThisGame += cashBonus;
-            UI.showNotification(`🌊 VAGUE ${newWave} ! +${5 + Math.floor(newWave / 3)} Cubes, +${cashBonus}💲`, "info");
+            UI.showNotification(`🌊 VAGUE ${newWave} ! ...`, "info");
             Objectives.initializeObjectives(gameStats);
         }
 
@@ -587,55 +587,45 @@ document.addEventListener('DOMContentLoaded', () => {
         UI.renderShopItemsUI(Shop.getShopItems(), gameStats.cash, uiElements.shopItemsContainer, handlePurchaseShopItem);
     }
 
-    function closeShopAndResumePlay() {
-        if (!isShopOverlayOpen && !currentBuildingToPlaceRef.building) {
-            // Si le shop n'est pas ouvert ET qu'on n'est pas en train de placer un bâtiment, ne rien faire.
-            // (Peut arriver si appelé plusieurs fois par erreur)
-            // return;
+    function closeShopAndResumePlay(manualClose = false) {
+        if (!isShopOverlayOpen && !currentBuildingToPlaceRef.building && !manualClose) {
+            // Si le shop n'est pas ouvert ET qu'on n'est pas en train de placer ET que ce n'est pas une fermeture manuelle,
+            // on ne fait rien (peut arriver si appelé plusieurs fois par erreur depuis handleBuyShopItem après que le shop soit déjà fermé).
+            // Si c'est une fermeture manuelle (bouton Fermer), on veut toujours exécuter la logique.
+             if (!manualClose && !isShopOverlayOpen) return;
         }
+
         isShopOverlayOpen = false;
         UI.setOverlayDisplay(uiElements.shopMenu, false);
 
-        // Si on ferme manuellement le shop (via bouton) alors qu'un bâtiment était en attente,
-        // annuler ce placement. Si c'est un achat de bâtiment, currentBuildingToPlaceRef
-        // est rempli, et on ne veut pas l'annuler ici car l'utilisateur va placer.
-        // Cette fonction est maintenant plus un "gestionnaire de fermeture d'overlay de shop".
-        // Le placement de bâtiment est géré par currentBuildingToPlaceRef.
-        // Si on clique sur "FERMER" et qu'on avait un bâtiment en main, on l'annule :
-        if (currentBuildingToPlaceRef.building && !arguments.callee.caller.toString().includes('handleBuyShopItem')) { // Heuristique pour savoir si appelé par bouton Fermer
-            // Ce check est un peu fragile. Mieux : passer un flag à closeShopAndResumePlay
-            // UI.showNotification("Placement de bâtiment annulé (shop fermé).", "info");
-            // currentBuildingToPlaceRef.building = null;
-            // currentBuildingToPlaceRef.itemConfig = null;
+        // Si on ferme MANUELLEMENT le shop (via bouton "FERMER") alors qu'un bâtiment était en attente,
+        // on annule ce placement.
+        if (manualClose && currentBuildingToPlaceRef.building) {
+            UI.showNotification("Placement de bâtiment annulé (shop fermé).", "info");
+            currentBuildingToPlaceRef.building = null;
+            currentBuildingToPlaceRef.itemConfig = null;
         }
+        // Si la fermeture est due à un achat de bâtiment, currentBuildingToPlaceRef reste rempli
+        // et manualClose sera false (ou non fourni).
 
-
-        // Si on n'était pas en pause explicite (via menu pause), on s'assure que le jeu est en 'playing'
         if (gameState === 'paused') {
-            // Si on était en pause (menu pause) avant d'ouvrir le shop,
-            // on retourne au menu pause.
             UI.setOverlayDisplay(uiElements.pauseMenu, true);
         } else if (gameState !== 'gameOver' && gameState !== 'menu') {
-            // Si on était en train de jouer et qu'on a ouvert le shop, puis acheté un bâtiment (qui a fermé le shop),
-            // ou si on a fermé le shop manuellement, on s'assure d'être en 'playing'.
             gameState = 'playing';
             if (!animationFrame) requestAnimationFrame(gameLoop);
         }
-        // Si currentBuildingToPlaceRef.building est non-nul, le fantôme s'affichera dans render().
     }
 
     function handlePurchaseShopItem(itemId) {
-        const purchaseResult = Shop.handleBuyShopItem(itemId, gameStats, baseCore, currentBuildingToPlaceRef, closeShopAndResumePlay); // <<<<<<<<<<<<<<<<<< MODIFIÉ ICI
+        // Passer `closeShopAndResumePlay` SANS argument, donc manualClose sera false par défaut
+        const purchaseResult = Shop.handleBuyShopItem(itemId, gameStats, baseCore, currentBuildingToPlaceRef, closeShopAndResumePlay);
         if (purchaseResult.success) {
-            UI.updateStatsUI(gameStats, gameElements); // Mettre à jour l'UI principale (cash, etc.)
-
-            // Si le shop s'est fermé (achat de bâtiment), isShopOverlayOpen sera false.
-            // Si le shop est resté ouvert (autres types d'achat), il faut rafraîchir ses items.
-            if (isShopOverlayOpen) {
+            UI.updateStatsUI(gameStats, gameElements);
+            if (isShopOverlayOpen) { // Si le shop est toujours ouvert (ex: achat de consommable)
                 UI.updateShopCashUI(gameStats.cash);
                 UI.renderShopItemsUI(Shop.getShopItems(), gameStats.cash, uiElements.shopItemsContainer, handlePurchaseShopItem);
             }
-
+            // ... (reste de la logique pour unlock et power_unlock)
             const itemConfig = Config.SHOP_ITEMS_CONFIG.find(i => i.id === itemId);
             if (itemConfig && itemConfig.type === 'unlock') {
                 InGameUpgrades.applyAllPassiveInGameUpgrades(gameStats);
@@ -644,10 +634,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (itemConfig && itemConfig.type === 'power_unlock') {
                 UI.renderPowersUI(Powers.getPowersState(), uiElements.powersList, handleActivatePower, Date.now());
             }
-            // Si un bâtiment a été acheté, `currentBuildingToPlaceRef` est rempli,
-            // et `closeShopAndResumePlay` aura été appelé par `Shop.handleBuyShopItem`,
-            // donc `isShopOverlayOpen` sera `false`.
-            // Le fantôme de placement s'affichera dans `render()`.
         }
     }
 
@@ -836,7 +822,7 @@ document.addEventListener('DOMContentLoaded', () => {
         handleCanvasContextMenuCallback,
         handleKeyDownCallback, handleKeyUpCallback, resizeCanvasAndRender,
         uiElements,
-        { startGame, showRules, restartGame, goToMenu, resumeGame: resumeGameFromSomeMenu, openShop, closeShop: closeShopAndResumePlay, togglePause }
+        { startGame, showRules, restartGame, goToMenu, resumeGame: resumeGameFromSomeMenu, openShop, closeShop: () => closeShopAndResumePlay(true), togglePause }
     );
     resizeCanvasAndRender();
     goToMenu();
