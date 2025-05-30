@@ -1,0 +1,1 @@
+// Fonctions utilitaires diverses (ex: calcul de distance, fonctions mathématiques)

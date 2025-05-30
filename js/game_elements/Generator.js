@@ -1,0 +1,1 @@
+// Logique des générateurs (cubes) - hérite de Building

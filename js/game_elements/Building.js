@@ -1,0 +1,1 @@
+// Classe de base pour les bâtiments - hérite d'Entity

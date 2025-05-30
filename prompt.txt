@@ -1,0 +1,7 @@
+ok voici mes idee, vis a vis de ca : da'bors on dois tou autant travailler sur la logic que sur le viseul, donc pour les vague onva metre
+ en evidanecun timer qui decompr=te le temps vaant la vague suivante, ennsutie tout les 5 vague on a un mini boss et tout les 10 vague 
+ un boss bien vener, aussi lors du deplacement du joueurs si il quite sa base et ne la vois plus on devrais ajouter un systme de gps qui
+  lui donne un balise qui dis dans quelle directions se trouve la base et ou le boss quand il apparait, on devrai faire un effet au jeu 
+  comme un effet de degats touge autours du jeu qnaon on est en vague de boss, ensuite ajouter un un personnage, la camera qu;on joue est
+   un person qui dois faire evoluer sa base, on va odnc developper la partie developpents, avec les bank les tourelles les creeateur de cube,
+ tout d'ois avoir un abres d'amelioration ce qui pousse le jouerues a faire de choix ce qui lui donne un effet de controle sur son jeu

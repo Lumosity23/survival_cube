@@ -1,0 +1,1 @@
+// Logique spécifique aux ennemis (mouvement, attaque) - hérite d'Entity

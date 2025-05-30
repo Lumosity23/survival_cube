@@ -1,0 +1,1 @@
+// (Optionnel) Gestionnaire simple pour les effets sonores

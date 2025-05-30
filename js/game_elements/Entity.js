@@ -1,0 +1,1 @@
+// Classe de base pour tout ce qui a une position, PV (Obstacles, Unités, Bâtiments)

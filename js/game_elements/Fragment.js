@@ -1,0 +1,1 @@
+// Logique pour les fragments à collecter

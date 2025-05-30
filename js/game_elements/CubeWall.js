@@ -1,0 +1,1 @@
+// Logique pour les cubes/remparts (PV, effets visuels) - pourrait hériter d'Entity

@@ -1,0 +1,1 @@
+// Gère les stats du joueur (PV, XP, Niveau), son équipement/armes si applicable

@@ -1,0 +1,1 @@
+// Gère l'état global du jeu (playing, paused, menu, wave_prep, wave_attack) et les transitions

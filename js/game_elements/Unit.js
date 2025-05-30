@@ -1,0 +1,1 @@
+// Logique pour les unités spawnées par la caserne (IA, attaque) - hérite d'Entity

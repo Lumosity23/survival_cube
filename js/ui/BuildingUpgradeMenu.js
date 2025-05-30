@@ -1,0 +1,1 @@
+// Pour le menu contextuel d'amélioration d'un bâtiment sélectionné
