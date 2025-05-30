@@ -4,7 +4,7 @@
 # Build artifacts / Packaged applications
 /release-builds
 # Si tu as d'autres dossiers de build, ajoute-les aussi, par exemple :
-# /dist
+/dist
 # /out
 
 # Log files
