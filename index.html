@@ -3,99 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cube Base Defense</title>
+    <title>Cube Base Defense - Vagues Fonctionnelles</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
+        <div id="gameScreenBorderEffect" style="display: none;"></div>
 
+        <div id="waveStatusOverlay" style="display: none;">
+            <div id="waveStatusText">VAGUE X EN COURS !</div>
+        </div>
+        
         <!-- Menu Principal -->
-        <div id="menu" class="overlay-menu">
+        <div id="menu" class="overlay-menu" style="display: flex;">
             <div class="title">CUBE BASE DEFENSE</div>
-            <div class="subtitle">
-                Protégez votre Noyau Précieux des vagues d'ennemis !<br>
-                Construisez, améliorez et survivez aussi longtemps que possible.
-            </div>
-            <button class="btn" id="startGameBtn">NOUVELLE PARTIE</button>
-            <button class="btn" id="showRulesBtnMenu">RÈGLES</button>
-            <div id="highScoresContainer">
-                <h3 style="margin-bottom: 10px;">MEILLEURS SCORES</h3>
-                <table id="highScoresTable">
-                    <thead><tr><th>#</th><th>Score</th><th>Vague</th><th>Temps</th></tr></thead>
-                    <tbody id="highScoresBody"></tbody>
-                </table>
-            </div>
+            <button class="btn" id="startGameBtn">COMMENCER LA DÉFENSE</button>
+            <button class="btn" id="showRulesBtnMenu">Règles</button>
         </div>
 
         <!-- Game Over Screen -->
-        <div id="gameOver" class="overlay-menu">
-            <div class="title">NOYAU DÉTRUIT</div>
+        <div id="gameOver" class="overlay-menu" style="display: none;">
+            <div class="title">NOYAU COMPROMIS</div>
             <div class="score" id="finalScore">Score: 0</div>
-            <div class="subtitle" id="gameOverText"></div>
-            <button class="btn" id="restartGameBtn">REJOUER</button>
+            <div class="subtitle" id="gameOverText">La menace a vaincu...</div>
+            <button class="btn" id="restartGameBtn">NOUVEL ESSAI</button>
             <button class="btn" id="goToMenuBtnGameOver">MENU PRINCIPAL</button>
         </div>
 
         <!-- Pause Menu -->
-        <div id="pauseMenu" class="overlay-menu">
-            <div class="title">PAUSE</div>
+        <div id="pauseMenu" class="overlay-menu" style="display: none;">
+            <div class="title">PAUSE SYSTÈME</div>
             <button class="btn" id="resumeGameBtn">REPRENDRE</button>
-            <button class="btn" id="openShopPauseBtn">SHOP (Pause)</button>
-            <button class="btn" id="goToMenuBtnPause">MENU PRINCIPAL</button>
+            <button class="btn" id="goToMenuBtnPause">QUITTER LA MISSION</button>
         </div>
 
-        <!-- Shop Menu -->
-        <div id="shopMenu">
-            <div class="title" style="font-size: 32px; margin-bottom: 10px;">SHOP</div>
-            <div style="margin-bottom: 15px; font-size: 16px;">Cash: <span id="shopCashDisplay">0</span> 💲</div>
-            <div id="shopItemsContainer" style="width: 100%;"></div>
-            <button class="btn" id="closeShopBtn" style="margin-top: 15px;">FERMER</button>
-        </div>
-
-        <!-- Game UI Elements -->
-        <div id="ui" style="display: none;">
+        <!-- UI en Jeu -->
+        <div id="ui" class="ui-panel" style="display: none;">
             <div class="rule"><strong>Cubes:</strong> <span id="cubeCount">0</span></div>
             <div class="rule"><strong>Score:</strong> <span id="score">0</span></div>
-            <div class="rule"><strong>Vague:</strong> <span id="wave">0</span></div>
-            <div class="rule"><strong>Cash:</strong> <span id="cashDisplay">0</span> 💲</div>
+            <div class="rule"><strong>Vague:</strong> <span id="waveInfo">Vague 0</span></div> <!-- Pour Vague X -->
+            <div class="rule"><span id="waveTimer" style="font-weight:bold;">Initialisation...</span></div> <!-- Pour le timer/statut -->
+            <div class="rule"><strong>Cash:</strong> <span id="cashDisplay">0</span></div>
             <div class="rule"><strong>Temps:</strong> <span id="survivalTime">0</span>s</div>
-        </div>
-        <div class="rule"><strong>Prod. Cubes:</strong> <span id="cubeProductionRate">0</span> /s</div>
-        <div id="inGameUpgrades" style="display: none;"> <!-- Ou une meilleure position -->
-            <div style="font-weight: bold; margin-bottom: 8px; color: #f0f0f0;">⚡ AMÉLIORATIONS</div>
-            <div id="upgradesList">
-            </div>
-        </div>
-        <div id="powersPanel" style="display: none;"> <!-- CSS le positionnera -->
-            <div style="font-weight: bold; margin-bottom: 8px; color: #f0f0f0;">⚡ POUVOIRS</div>
-            <div id="powersList"></div>
-        </div>
-        <div class="base-health-bar-container" style="display: none;">
-            <div id="baseHealthBar" class="base-health-bar">Noyau: 100%</div>
+            <div class="rule"><strong>Noyau:</strong> <span id="baseHealthDisplay">100</span>%</div>
         </div>
 
-        <div id="objectives" style="display: none;">
-            <div style="font-weight: bold; margin-bottom: 8px; color: #f0f0f0;">🎯 OBJECTIFS</div>
-            <div id="objectiveList"></div>
+        <!-- Grand Timer Central pour la Préparation de Vague -->
+        <div id="bigWaveTimerOverlay" style="display: none;">
+            <div id="bigWaveTimerText">VAGUE X EN APPROCHE</div>
+            <div id="bigWaveCountdown">60</div>
         </div>
-        
-        <div id="instructions" style="display: none;">
-            <div><strong>CONTRÔLES:</strong></div>
-            <div>Clic G: Placer/Construire</div>
-            <div>Clic D: Supprimer Cube/Annuler</div>
-            <div>WASD: Déplacer Caméra</div>
-            <div>P / Echap: Pause/Menu</div>
-            <div><br><strong>ASTUCES:</strong></div>
-            <div>• Les ennemis ont des PV.</div>
-            <div>• Achetez des améliorations au Shop!</div>
-        </div>
+
         <div id="gameControls" style="display: none;">
-            <button id="shopButton" class="btn">SHOP</button>
-            <button id="pauseButton" class="btn">PAUSE</button>
+            <button id="pauseButton" class="btn">Pause</button>
         </div>
 
-        <!-- Notifications -->
         <div id="notificationContainer"></div>
     </div>
     <script type="module" src="js/main.js"></script>

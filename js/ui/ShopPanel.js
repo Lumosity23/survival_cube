@@ -1,9 +1,9 @@
 // js/shop.js
-import * as Config from './config.js';
-import * as UI from './ui.js';
-import { createBuilding } from './gameObjects.js';
-import * as InGameUpgrades from './inGameUpgrades.js';
-import { unlockOrAddChargePower } from './powers.js';
+import * as Config from '../config.js';
+import * as UI from './UIManager.js';
+import { createBuilding } from '../game_elements/gameObjects.js';
+import * as InGameUpgrades from './InGameUpgradePanel.js';
+import { unlockOrAddChargePower } from './PowersPanel.js';
 
 let currentShopItemsState = [];
 

@@ -1,5 +1,5 @@
-import * as Config from './config.js';
-import * as UI from './ui.js';
+import * as Config from '../config.js';
+import * as UI from '../ui/UIManager.js';
 // Les fonctions d'objectifs et de shop seront importées dans main.js et appelées depuis là-bas.
 
 export function handlePowerUpCollection(powerUp, gameStats, baseCore) {

@@ -1,6 +1,6 @@
 // js/inGameUpgrades.js
-import * as Config from './config.js';
-import * as UI from './ui.js';
+import * as Config from '../config.js';
+import * as UI from './UIManager.js';
 
 let currentUpgradesState = [];
 

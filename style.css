@@ -1,180 +1,232 @@
+/* style.css */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400&display=swap');
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #1a1a1a; font-family: 'Courier New', monospace; overflow: hidden; color: #e0e0e0; }
-#gameContainer { position: relative; width: 100vw; height: 100vh; }
-#gameCanvas { background: #2a2a2a; cursor: crosshair; display: block; }
+body, html {
+    width: 100%; height: 100%; font-family: 'Roboto Mono', monospace;
+    background: #0a0a10; color: #b0c0d0; overflow: hidden;
+}
+#gameContainer { position: relative; width: 100vw; height: 100vh; background-color: #101015; }
+#gameCanvas { display: block; width: 100%; height: 100%; background-color: #101018; cursor: crosshair; position: absolute; top: 0; left: 0; z-index: 1; }
 
 .overlay-menu {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(20, 20, 20, 0.97);
-    display: none; /* Initially hidden, JS will control display */
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 100;
-    text-align: center;
+    background: rgba(10, 10, 22, 0.94); backdrop-filter: blur(6px);
+    display: none; flex-direction: column; justify-content: center;
+    align-items: center; z-index: 100; text-align: center; padding: 20px;
+    animation: fadeInOverlay 0.4s ease-out forwards;
 }
-#menu { display: flex; } /* Main menu visible by default */
-#gameOver { /* display: none; */ }
-#pauseMenu { /* display: none; */ }
+@keyframes fadeInOverlay { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+#menu { display: flex; }
 
-#shopMenu {
-    display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: 90%; max-width: 700px; height: 80%; max-height: 600px;
-    background: rgba(30, 30, 30, 0.98); border: 2px solid #606060;
-    flex-direction: column; justify-content: flex-start; align-items: center;
-    z-index: 110; padding: 20px; overflow-y: auto;
+.title {
+    font-family: 'Orbitron', monospace; font-size: 38px; font-weight: 700;
+    margin-bottom: 20px; color: #c8d8ff;
+    text-shadow: 0 0 10px rgba(150, 180, 255, 0.2);
+    letter-spacing: 2px; text-transform: uppercase;
 }
+#gameOver .title { font-size: 60px; color: #d86070; text-shadow: 0 0 12px rgba(216, 96, 112, 0.4); }
+.subtitle { font-size: 15px; margin-bottom: 30px; color: #90a8c8; max-width: 480px; line-height: 1.6; }
+.score { font-size: 28px; margin: 15px 0; color: #e0e8f8; }
 
-.title { font-size: 48px; margin-bottom: 30px; color: #f0f0f0; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); letter-spacing: 3px; }
-.subtitle { font-size: 18px; margin-bottom: 40px; color: #b0b0b0; max-width: 600px; line-height: 1.6; }
 .btn {
-    padding: 12px 25px; background: #404040; border: 2px solid #606060; color: #f0f0f0;
-    font-family: inherit; font-size: 16px; cursor: pointer; margin: 8px;
-    transition: all 0.3s ease; letter-spacing: 1px; min-width: 200px; text-align: center;
+    font-family: 'Orbitron', monospace; padding: 11px 25px; background: transparent;
+    border: 2px solid rgba(0, 221, 255, 0.55); color: #00ddff;
+    border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer;
+    margin: 8px; transition: all 0.2s ease-out; letter-spacing: 1.5px;
+    text-transform: uppercase; box-shadow: 0 0 6px rgba(0, 221, 255, 0.25);
+    position: relative; overflow: hidden;
 }
-.btn:hover { background: #505050; border-color: #808080; transform: translateY(-2px); }
-.btn:disabled { background: #303030; border-color: #404040; color: #707070; cursor: not-allowed; transform: none; }
+.btn::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(0, 221, 255, 0.15), transparent); transition: left 0.4s ease-out; }
+.btn:hover::before, .btn:focus::before { left: 100%; }
+.btn:hover, .btn:focus { border-color: #33ffff; background: rgba(0, 221, 255, 0.08); color: #ffffff; box-shadow: 0 0 12px rgba(0, 221, 255, 0.6), 0 0 22px rgba(0, 221, 255, 0.4), inset 0 0 8px rgba(0, 221, 255, 0.2); transform: translateY(-2px) scale(1.03); outline: none; }
+.btn:active { transform: translateY(0px) scale(1); box-shadow: 0 0 4px rgba(0, 221, 255, 0.5), inset 0 0 12px rgba(0, 221, 255, 0.4); }
+.btn:disabled { border-color: rgba(80, 100, 120, 0.4); color: #506070; background: rgba(25, 35, 50, 0.4); box-shadow: none; cursor: not-allowed; transform: none; }
+.btn:disabled::before { display: none; }
 
-#ui {
-    position: absolute; top: 10px; left: 10px; color: #e0e0e0; font-size: 15px; z-index: 10;
-    background: rgba(40, 40, 40, 0.9); padding: 12px; border: 1px solid #606060; min-width: 230px;
+.ui-panel {
+    position: absolute; color: #a8b8d0; font-size: 12px;
+    background: rgba(15, 18, 28, 0.9); padding: 10px 12px;
+    border: 1px solid rgba(60, 80, 110, 0.6); border-radius: 5px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.25); backdrop-filter: blur(4px);
+    z-index: 10; /* Au-dessus du canvas */
 }
-#objectives {
-    position: absolute; top: 70px; right: 50px; color: #e0e0e0; font-size: 13px; z-index: 10;
-    background: rgba(40, 40, 40, 0.9); padding: 12px; border: 1px solid #606060; max-width: 280px;
+#ui { top: 10px; left: 10px; min-width: 220px; }
+#ui .rule { margin: 4px 0; padding: 4px 0; border-bottom: 1px solid rgba(60, 80, 110, 0.3); font-size: 12px; }
+#ui .rule:last-child { border-bottom: none; }
+#ui .rule strong { color: #b0c8e8; font-weight: 500; }
+#ui .rule span { color: #d8e2f8; font-weight: bold; }
+#ui #waveTimer { font-weight:bold; transition: color 0.3s ease; }
+
+#instructions { bottom: 10px; left: 10px; max-width: 270px; font-size: 11px; }
+#instructions strong { color: #b0c8e8; }
+
+/* Grand Timer Central */
+#bigWaveTimerOverlay {
+    position: fixed; /* Fixe par rapport à la fenêtre */
+    top: 0; /* Commence en haut */
+    left: 0;
+    width: 100%;
+    /*height: 100%;  /* On ne veut plus qu'il prenne toute la hauteur */
+    padding-top: 5%; /* Espace depuis le haut de l'écran */
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    /* justify-content: center; NON, on veut qu'il soit en haut */
+    /* background: rgba(10, 10, 18, 0.75); */ /* Suppression du fond plein écran */
+    background: none; /* Pas de fond pour l'overlay lui-même */
+    z-index: 90;
+    pointer-events: none;
+    animation: fadeInOverlay 0.3s ease-out forwards;
 }
-.objective { margin: 7px 0; padding: 7px; background: rgba(60, 60, 60, 0.5); border-left: 3px solid #808080; font-size: 12px; }
-.objective.completed { background: rgba(80, 120, 80, 0.3); border-left-color: #a0d0a0; color: #c0e0c0; text-decoration: line-through; }
+
+#bigWaveTimerText {
+    font-family: 'Orbitron', monospace;
+    font-size: 22px; /* Un peu plus petit */
+    color: #a0c0ff;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+    text-shadow: 0 0 6px rgba(160, 192, 255, 0.4), /* Ombre plus subtile */
+                 0 0 3px rgba(0,0,0,0.5); /* Petite ombre portée pour détacher */
+    background-color: rgba(10, 15, 25, 0.6); /* Léger fond pour le texte seulement */
+    padding: 5px 15px;
+    border-radius: 4px;
+}
+
+#bigWaveCountdown {
+    font-family: 'Orbitron', monospace;
+    font-size: 80px; /* Un peu réduit si en haut */
+    font-weight: 900;
+    color: #00ffdd;
+    text-shadow: 0 0 8px #00ffdd, /* Ombres réduites */
+                 0 0 18px rgba(0, 255, 221, 0.5),
+                 0 0 2px rgba(0,0,0,0.7); /* Petite ombre portée */
+    line-height: 1;
+}
+
+/* Style pour le message "VAGUE EN COURS !" */
+#ui #waveTimer.wave-in-progress-text {
+    color: #ff8888; /* Juste un rouge discret pour indiquer que la vague est en cours */
+    text-shadow: none;
+    animation: none; /* Pas de clignotement */
+    font-weight: normal;
+}
+
+#ui #waveTimer.wave-in-progress-text { /* Assure-toi que ce style est bien appliqué */
+    color: #ff4466 !important; /* Rouge néon, !important pour forcer si conflit */
+    text-shadow: 0 0 5px #ff4466, 0 0 10px rgba(255, 68, 102, 0.7);
+    animation: leichtePulseRed 1.5s infinite alternate;
+    font-size: 13px; /* Un peu plus grand pour être visible */
+    font-weight: bold;
+}
+
+@keyframes leichtePulseRed { /* Peut rester le même */
+    from { opacity: 0.7; transform: scale(1); }
+    to   { opacity: 1; transform: scale(1.02); }
+}
+
+/* Classes pour les différents états de la bordure */
+#gameScreenBorderEffect.wave-starting { /* Bleu pour anticipation de vague */
+    display: block !important;
+    border-width: 10px; /* Épaisseur de la bordure */
+    border-color: rgba(0, 190, 255, 0.7); /* Bleu néon */
+    box-shadow: inset 0 0 15px rgba(0, 190, 255, 0.5),
+                inset 0 0 30px rgba(0, 120, 200, 0.3);
+    animation: pulseBlueBorder 1.5s infinite alternate;
+}
+
+#gameScreenBorderEffect.boss-active {
+    display: block !important; border-width: 10px;
+    border-color: rgba(200, 30, 50, 0.7); /* Rouge plus sombre pour boss */
+    box-shadow: inset 0 0 18px rgba(200, 30, 50, 0.5), inset 0 0 35px rgba(180, 20, 30, 0.3);
+    animation: pulseRedBorder 1.2s infinite alternate; /* Pulsation plus lente pour boss */
+}
+
+#gameScreenBorderEffect.player-damage { /* Rouge pour dégâts subis par le noyau/joueur */
+    display: block !important;
+    border-width: 15px; /* Plus épais pour impact */
+    border-color: rgba(255, 0, 0, 0.9);
+    box-shadow: inset 0 0 25px rgba(255, 0, 0, 0.7),
+                inset 0 0 50px rgba(200, 0, 0, 0.5);
+    animation: flashRedDamage 0.5s ease-out; /* Animation courte de flash */
+}
+
+@keyframes pulseBlueBorder {
+    from { box-shadow: inset 0 0 10px rgba(0, 190, 255, 0.4), inset 0 0 20px rgba(0, 120, 200, 0.2); border-width: 8px;}
+    to   { box-shadow: inset 0 0 20px rgba(0, 190, 255, 0.6), inset 0 0 40px rgba(0, 120, 200, 0.4); border-width: 12px;}
+}
+@keyframes pulseRedBorder {
+    from { box-shadow: inset 0 0 15px rgba(255, 50, 80, 0.5), inset 0 0 30px rgba(200, 30, 50, 0.3); border-width: 10px; }
+    to   { box-shadow: inset 0 0 25px rgba(255, 50, 80, 0.7), inset 0 0 50px rgba(200, 30, 50, 0.5); border-width: 14px; }
+}
+@keyframes flashRedDamage { /* Pour un flash rapide quand on prend des dégâts */
+    0%   { border-width: 15px; opacity: 1; border-color: rgba(255,0,0,0.9); box-shadow: inset 0 0 25px rgba(255,0,0,0.7); }
+    50%  { border-width: 10px; opacity: 0.7; border-color: rgba(255,80,80,0.5); box-shadow: inset 0 0 15px rgba(255,80,80,0.4); }
+    100% { border-width: 0px; opacity: 0; border-color: transparent; box-shadow: none; } /* Disparaît */
+}
+
+#waveStatusOverlay {
+    position: fixed;
+    top: 100px;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: none; /* Initialement caché, géré par JS */
+    padding: 20px 40px;
+    background: rgba(200, 50, 50, 0.1); /* Fond rouge très léger */
+    border: 1px solid rgba(255, 80, 80, 0.3); /* Bordure rouge subtile */
+    border-radius: 10px;
+    z-index: 95;
+    pointer-events: none;
+    /* L'animation est appliquée par JS pour permettre le redéclenchement */
+}
+
+#waveStatusText {
+    font-family: 'Orbitron', monospace;
+    font-size: 38px; /* Ajuster si besoin */
+    font-weight: 700;
+    color: #ff5068; /* Rouge néon pour le texte */
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    text-shadow: 0 0 6px #ff5068, 0 0 12px rgba(255, 80, 104, 0.6);
+}
+
+/* Animation pour faire apparaître puis disparaître le message */
+@keyframes fadeInThenOutWaveStatus {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); } /* Départ */
+    15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } /* Apparition rapide et léger rebond */
+    25%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }   /* Stabilisation */
+    85%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }   /* Reste visible */
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); display: none; } /* Disparition */
+}
+
+/* L'effet de bordure d'écran (flash au début de vague) */
+#gameScreenBorderEffect.wave-start-flash {
+    display: block !important;
+    border-width: 10px;
+    border-color: rgba(220, 50, 70, 0.7);
+    box-shadow: inset 0 0 20px rgba(220, 50, 70, 0.6),
+                inset 0 0 40px rgba(180, 30, 40, 0.4);
+    animation: flashRedBorderEffect 0.5s ease-out forwards; /* Durée réduite */
+}
+@keyframes flashRedBorderEffect {
+    0%   { opacity: 1; border-width: 12px; }
+    100% { opacity: 0; border-width: 0px; display: none; }
+}
+
+#gameControls { position: absolute; top: 10px; right: 10px; z-index: 50; display: none; }
+#gameControls .btn { min-width: auto; padding: 9px 18px; font-size: 12px; }
 
 #notificationContainer { position: fixed; bottom: 15px; right: 15px; z-index: 200; display: flex; flex-direction: column-reverse; align-items: flex-end; }
 .notification {
-    background: rgba(40, 40, 40, 0.95); border: 2px solid #808080; padding: 12px 18px; color: #f0f0f0;
-    font-size: 13px; text-align: left; margin-top: 8px; min-width: 230px;
-    animation: slideInFadeOut 5s ease-in-out forwards; border-left: 4px solid #606060;
+    background: rgba(25, 30, 45, 0.96); border: 1px solid rgba(70, 90, 120, 0.4);
+    border-left-width: 3px; padding: 8px 12px; font-size: 11px; color: #e0e8f8;
+    border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); margin-top: 8px;
+    animation: slideInFadeOut 5s ease-in-out forwards;
 }
-.notification.info { border-left-color: #60a0f0; } .notification.success { border-left-color: #60f0a0; }
-.notification.warning { border-left-color: #f0a060; } .notification.error { border-left-color: #f06060; }
+.notification.info { border-left-color: #00aaff; }
+.notification.success { border-left-color: #00cc88; }
+.notification.warning { border-left-color: #ffc040; }
+.notification.error { border-left-color: #dd4455; }
 @keyframes slideInFadeOut { 0%{opacity:0;transform:translateX(100%);} 15%{opacity:1;transform:translateX(0);} 85%{opacity:1;transform:translateX(0);} 100%{opacity:0;transform:translateX(100%);} }
-
-#instructions {
-    position: absolute; bottom: 10px; left: 10px; color: #a0a0a0; font-size: 12px; text-align: left;
-    background: rgba(40, 40, 40, 0.8); padding: 10px; border: 1px solid #606060; max-width: 280px; z-index: 5;
-}
-.score { font-size: 32px; margin: 15px 0; color: #f0f0f0; }
-.rule { margin: 4px 0; padding: 4px 0; border-bottom: 1px solid #404040; } .rule:last-child { border-bottom: none; }
-
-#gameControls { position: absolute; top: 10px; right: 310px; /* Adjust based on objectives width */ z-index: 50; display: flex; }
-#gameControls .btn { min-width: auto; padding: 8px 12px; margin-left: 8px; font-size: 14px; }
-
-.shop-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; margin: 4px 0; background: #333; border: 1px solid #555; width: 100%; }
-.shop-item-info { flex-grow: 1; } .shop-item-name { font-size: 15px; color: #e0e0e0;}
-.shop-item-desc { font-size: 11px; color: #a0a0a0;} .shop-item-cost { font-size: 13px; color: #f0c060; margin-left: 8px;}
-.shop-item .btn {min-width: 100px; padding: 6px 10px; font-size: 13px; margin: 0 0 0 10px;}
-
-#highScoresContainer { margin-top: 30px; width: 80%; max-width: 500px; }
-#highScoresTable { width: 100%; border-collapse: collapse; }
-#highScoresTable th, #highScoresTable td { border: 1px solid #555; padding: 8px; text-align: left; }
-#highScoresTable th { background-color: #333; }
-
-.base-health-bar-container {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 200px;
-    height: 25px;
-    background-color: #555;
-    border: 2px solid #888;
-    border-radius: 5px;
-    z-index: 15;
-}
-.base-health-bar {
-    width: 100%;
-    height: 100%;
-    background-color: #4CAF50; /* Green */
-    border-radius: 3px;
-    transition: width 0.3s ease-in-out;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    color: white;
-    text-shadow: 1px 1px 1px black;
-}
-
-#inGameUpgrades {
-    position: absolute;
-    /* top: 200px;  Adapte la position */
-    /* right: 10px; */
-    /* Ou intègre-le dans la section #ui à gauche */
-    top: 500px; /* Exemple: en haut à droite */
-    right: 10px;
-    color: #e0e0e0;
-    font-size: 13px;
-    z-index: 10;
-    background: rgba(40, 40, 40, 0.9);
-    padding: 12px;
-    border: 1px solid #606060;
-    max-width: 280px; /* Similaire aux objectifs */
-}
-.upgrade-item {
-    margin: 7px 0;
-    padding: 8px;
-    background: rgba(50, 50, 70, 0.7); /* Couleur distincte */
-    border-left: 3px solid #a0a0f0;
-    font-size: 12px;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-}
-.upgrade-item:hover {
-    background-color: rgba(70, 70, 90, 0.8);
-}
-.upgrade-item.maxed {
-    background-color: rgba(70, 70, 70, 0.5);
-    border-left-color: #777;
-    cursor: default;
-    color: #aaa;
-}
-.upgrade-item-name { font-weight: bold; }
-.upgrade-item-desc { font-size: 11px; color: #c0c0c0; margin-top: 3px; }
-.upgrade-item-cost { font-size: 11px; color: #f0c060; margin-top: 3px; }
-.upgrade-item-level { font-size: 10px; color: #909090; }
-
-/* style.css */
-#powersPanel {
-    position: absolute;
-    bottom: 10px; /* Ou autre position */
-    /* left: 10px; ou right: 10px; */
-    left: 300px; /* Exemple à côté des instructions */
-    color: #e0e0e0;
-    font-size: 13px;
-    z-index: 10;
-    background: rgba(40, 40, 40, 0.9);
-    padding: 12px;
-    border: 1px solid #606060;
-    max-width: 280px;
-    display: none; /* Initialement caché, JS gère la visibilité */
-    flex-direction: column; /* Pour que les items s'empilent */
-}
-.power-item { /* Style pour chaque pouvoir dans la liste */
-    margin: 7px 0;
-    padding: 8px;
-    background: rgba(70, 50, 70, 0.7); /* Couleur distincte pour les pouvoirs */
-    border-left: 3px solid #d0a0f0;
-    font-size: 12px;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-}
-.power-item:hover {
-    background-color: rgba(90, 70, 90, 0.8);
-}
-.power-item.on-cooldown, .power-item.no-charges { /* Classes pour états spécifiques */
-    background-color: rgba(70, 70, 70, 0.5);
-    border-left-color: #777;
-    cursor: default;
-    color: #aaa;
-}
-.power-item.active {
-    border-left-color: #ffeb3b; /* Jaune quand actif */
-    background-color: rgba(90, 90, 50, 0.8);
-}

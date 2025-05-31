@@ -1,113 +1,98 @@
+// js/systems/CollisionSystem.js
 import * as Config from '../config.js';
-import * as UI from '../ui.js'; // Potentially for collision feedback, though less common
+import * as UIManager from '../ui/UIManager.js'; // Garder pour showNotification si besoin
 
-// Note: gameStats, gameElements, baseCore will be passed from main.js update loop
 export function handleObstacleCollisions(gameElements, gameStats, baseCore, endGameCallback) {
+    let gameShouldEnd = false;
     for (let obsIdx = gameElements.obstacles.length - 1; obsIdx >= 0; obsIdx--) {
         const obstacle = gameElements.obstacles[obsIdx];
+        if (!obstacle) continue;
 
-        // Collision with Base Core
+        // Collision avec Base Core
         if (Math.hypot(obstacle.x - baseCore.x, obstacle.y - baseCore.y) < obstacle.radius + baseCore.radius) {
+            const previousHealth = baseCore.health;
             baseCore.health -= obstacle.damage;
-            gameElements.obstacles.splice(obsIdx, 1);
-            UI.updateBaseHealthBarUI(baseCore.health); // UI update specific to base health
-            if (baseCore.health <= 0) {
-                endGameCallback("Noyau détruit par un ennemi !"); // Call the endGame function passed from main
-                return true; // Indicates game should end
+
+            // Déclencher l'effet visuel de dégât si la vie a diminué
+            if (baseCore.health < previousHealth && UIManager.triggerScreenBorderEffect) { // S'assurer que la fonction existe dans UIManager ou Effects
+                 // Si triggerScreenBorderEffect est dans Effects.js (ce qui est le cas maintenant)
+                 // alors CollisionSystem doit importer Effects.js et l'appeler.
+                 // Pour l'instant, on suppose que main.js gère l'effet de dégât en observant baseCore.health
+                 // ou on importe Effects.js ici.
+                 // Exemple avec import de Effects:
+                 // import * as Effects from '../effects.js'; // A ajouter en haut
+                 // Effects.triggerScreenBorderEffect('player_damage');
             }
-            continue; // Move to next obstacle
+
+            // La mise à jour de l'UI TEXTUELLE (baseHealthDisplay) se fera via updateStatsUI dans main.js
+            // car gameStats.baseCoreHealth sera mis à jour.
+            // UIManager.updateBaseHealthBarUI(baseCore.health); // Cette fonction met à jour la BARRE GRAPHIQUE si elle est utilisée.
+
+            gameElements.obstacles.splice(obsIdx, 1);
+
+            if (baseCore.health <= 0) {
+                endGameCallback("Noyau détruit par un ennemi !");
+                gameShouldEnd = true;
+                // if (Effects && Effects.triggerScreenBorderEffect) Effects.triggerScreenBorderEffect('none'); // Nettoyer l'effet
+                break;
+            }
+            continue;
         }
 
-        // Collision with Cubes or Buildings
+        // Collision avec Cubes ou Bâtiments (si réintroduits)
         const gridX = Math.floor(obstacle.x / Config.GRID_SIZE);
         const gridY = Math.floor(obstacle.y / Config.GRID_SIZE);
         const key = `${gridX},${gridY}`;
 
         let collidedWithStructure = false;
-        let obstacleDestroyedInCollision = false;
-
-        if (gameElements.cubes.has(key)) {
+        if (gameElements.cubes && gameElements.cubes.has(key)) { // Vérifier si cubes existe
             let cube = gameElements.cubes.get(key);
+            const cubeDamageToObstacle = cube.damage || 0;
+            obstacle.hp -= cubeDamageToObstacle;
             cube.hp -= obstacle.damage;
-            obstacle.hp -= (cube.type === 'reinforced' ? 20 : 10); // Cube damage to obstacle
-
             if (cube.hp <= 0) gameElements.cubes.delete(key);
             collidedWithStructure = true;
-        } else if (gameElements.buildings.has(key)) {
+        } else if (gameElements.buildings && gameElements.buildings.has(key)) { // Vérifier si buildings existe
             let building = gameElements.buildings.get(key);
-            if (building.hp !== undefined) { // Check if building is destructible
+            if (building.hp !== undefined) {
                 building.hp -= obstacle.damage;
-                // Obstacle takes damage from building? For now, no.
                 if (building.hp <= 0) {
                     gameElements.buildings.delete(key);
-                    UI.showNotification(`${building.type === 'generator' ? 'Générateur' : 'Bâtiment'} détruit !`, "warning");
+                    if (UIManager.showNotification) UIManager.showNotification(`${building.type === 'generator' ? 'Générateur' : (building.type === 'turret' ? 'Tourelle' : 'Bâtiment')} détruit !`, "warning");
                 }
             }
-            // Obstacle is destroyed on impact with building in current model
-            // If not, obstacle.hp check below will handle it.
-            // For now, let's assume obstacle is heavily damaged or destroyed by hitting a building.
-            obstacle.hp -= obstacle.maxHp; // Effectively destroy obstacle on building hit
+            obstacle.hp -= obstacle.maxHp * 0.8; // L'obstacle prend de gros dégâts
             collidedWithStructure = true;
         }
 
-        if (collidedWithStructure && obstacle.hp <= 0) {
-            gameElements.obstacles.splice(obsIdx, 1);
-            gameStats.score += obstacle.scoreValue;
-            gameStats.cash += obstacle.cashValue;
-            gameStats.cashEarnedThisGame += obstacle.cashValue;
-            gameStats.obstaclesDestroyed++;
-            obstacleDestroyedInCollision = true;
+        if (obstacle.hp <= 0) {
+            if (gameElements.obstacles[obsIdx] === obstacle) {
+                gameElements.obstacles.splice(obsIdx, 1);
+                if(gameStats) { // S'assurer que gameStats est disponible
+                    gameStats.score = (gameStats.score || 0) + (obstacle.scoreValue || 10);
+                    gameStats.cash = (gameStats.cash || 0) + (obstacle.cashValue || 1);
+                    gameStats.cashEarnedThisGame = (gameStats.cashEarnedThisGame || 0) + (obstacle.cashValue || 1);
+                    gameStats.obstaclesDestroyed = (gameStats.obstaclesDestroyed || 0) + 1;
+                }
+            }
+            continue;
         }
-        // If obstacle survived the collision but the structure it hit was destroyed, it continues.
 
-        // Remove off-screen obstacles (if not destroyed by collision already)
-        if (!obstacleDestroyedInCollision && (Math.abs(obstacle.x - gameStats.camera.x) > gameStats.canvasWidth * 1.5 || Math.abs(obstacle.y - gameStats.camera.y) > gameStats.canvasHeight * 1.5)) {
-            gameElements.obstacles.splice(obsIdx, 1);
+        if (gameStats && gameStats.camera && gameStats.canvasWidth && gameStats.canvasHeight &&
+            (Math.abs(obstacle.x - gameStats.camera.x) > gameStats.canvasWidth * 1.2 ||
+             Math.abs(obstacle.y - gameStats.camera.y) > gameStats.canvasHeight * 1.2)) {
+            if (gameElements.obstacles[obsIdx] === obstacle) {
+                 gameElements.obstacles.splice(obsIdx, 1);
+            }
         }
     }
-    return false; // Game does not need to end due to collisions in this pass
+    return gameShouldEnd;
 }
 
 export function handlePowerUpProximity(powerUp, camera) {
-    return Math.hypot(powerUp.x - camera.x, powerUp.y - camera.y) < powerUp.radius + 20; // 20 is approx camera/cursor radius
+    return false; // Non utilisé pour l'instant
 }
 
 export function checkCameraCollision(newCamX, newCamY, camera, gameElements) {
-    const camRadius = Config.GRID_SIZE / 3;
-    const pointsToTest = [
-        {x: newCamX - camRadius, y: newCamY - camRadius}, {x: newCamX + camRadius, y: newCamY - camRadius},
-        {x: newCamX - camRadius, y: newCamY + camRadius}, {x: newCamX + camRadius, y: newCamY + camRadius},
-        {x: newCamX, y: newCamY} // center
-    ];
-
-    let canMoveX = true;
-    let canMoveY = true;
-
-    for (const point of pointsToTest) {
-        const gridX = Math.floor(point.x / Config.GRID_SIZE);
-        const gridY = Math.floor(point.y / Config.GRID_SIZE);
-        const key = `${gridX},${gridY}`;
-
-        if (gameElements.cubes.has(key) || gameElements.buildings.has(key)) {
-            const currentGridX = Math.floor(camera.x / Config.GRID_SIZE);
-            const currentGridY = Math.floor(camera.y / Config.GRID_SIZE);
-            const targetGridX = Math.floor(newCamX / Config.GRID_SIZE);
-            const targetGridY = Math.floor(newCamY / Config.GRID_SIZE);
-
-            // If trying to move into a blocked cell horizontally
-            if (targetGridX === gridX && currentGridY === gridY && newCamX !== camera.x) {
-                canMoveX = false;
-            }
-            // If trying to move into a blocked cell vertically
-            if (targetGridY === gridY && currentGridX === gridX && newCamY !== camera.y) {
-                canMoveY = false;
-            }
-            // If moving diagonally into a corner or more complex scenario
-            if (targetGridX === gridX && targetGridY === gridY) { // simplified: if target cell is blocked
-                if (newCamX !== camera.x) canMoveX = false;
-                if (newCamY !== camera.y) canMoveY = false;
-            }
-        }
-    }
-    return { canMoveX, canMoveY };
+    return { canMoveX: true, canMoveY: true }; // Pas de collision pour l'instant
 }

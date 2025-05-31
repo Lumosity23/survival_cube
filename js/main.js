@@ -1,183 +1,165 @@
 // js/main.js
 import * as Config from './config.js';
-import * as UI from './ui.js';
-import * as GameObjects from './gameObjects.js';
-import * as GameController from './gameController.js';
-import * as EventListeners from './eventListeners.js';
+import * as UIManager from './ui/UIManager.js';
+import * as GameObjects from './game_elements/gameObjects.js'; // Contient createBuilding
+// Importer les futures classes/factories de bâtiments si elles existent déjà
+// import { Turret } from './game_elements/Turret.js';
+// import { CoreBuilding } from './game_elements/CoreBuilding.js';
+// import { Generator } from './game_elements/Generator.js';
+// import { Bank } from './game_elements/Bank.js';
+import * as EventListeners from './InputSystem.js';
 import * as Storage from './storage.js';
-import * as Collision from './collision.js';
-import * as Objectives from './objectives.js';
-import * as Shop from './shop.js';
-import * as InGameUpgrades from './inGameUpgrades.js';
-import * as Powers from './powers.js';
+import * as CollisionSystem from './systems/CollisionSystem.js';
+import * as RenderingSystem from './systems/RenderingSystem.js';
+import * as GameState from './core/GameState.js';
+import * as WaveManager from './core/WaveManager.js';
+import * as AISystem from './systems/AISystem.js';
+// Importer les modules pour Shop, Upgrades, Pouvoirs, Objectifs s'ils sont réintégrés
+// import * as ShopPanel from './ui/ShopPanel.js';
+// import * as InGameUpgradePanel from './ui/InGameUpgradePanel.js';
+// import * as PowersPanel from './ui/PowersPanel.js';
+// import * as ObjectiveManager from './progression/ObjectiveManager.js';
+import * as GameController from './core/gameController.js'; // Pour handlePowerUpCollection
+import * as Effects from './effects.js'
+
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log("DOM Chargé. Initialisation du jeu...");
+
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    if (!canvas || !ctx) {
+        console.error("Impossible d'initialiser le canvas ou le contexte 2D.");
+        return;
+    }
 
     const uiElements = {
         menu: document.getElementById('menu'),
         gameOver: document.getElementById('gameOver'),
         pauseMenu: document.getElementById('pauseMenu'),
-        shopMenu: document.getElementById('shopMenu'),
         uiStats: document.getElementById('ui'),
-        objectivesDisplay: document.getElementById('objectives'),
-        instructions: document.getElementById('instructions'),
         gameControls: document.getElementById('gameControls'),
-        baseHealthBarContainer: document.querySelector('.base-health-bar-container'),
-        baseHealthBar: document.getElementById('baseHealthBar'),
-        cubeCount: document.getElementById('cubeCount'),
-        score: document.getElementById('score'),
-        wave: document.getElementById('wave'),
-        cashDisplay: document.getElementById('cashDisplay'),
-        survivalTime: document.getElementById('survivalTime'),
-        objectiveList: document.getElementById('objectiveList'),
+        // baseHealthBarContainer: document.querySelector('.base-health-bar-container'), // Pas utilisé pour l'instant
+        // baseHealthBar: document.getElementById('baseHealthBar'),
+        baseHealthDisplay: document.getElementById('baseHealthDisplay'), // Pour UI texte
+        waveInfo: document.getElementById('waveInfo'),
+        waveTimer: document.getElementById('waveTimer'),
+        waveStatusOverlay: document.getElementById('waveStatusOverlay'), // Vérifie cet ID
+        waveStatusText: document.getElementById('waveStatusText'),
+        bigWaveTimerOverlay: document.getElementById('bigWaveTimerOverlay'),
+        bigWaveTimerText: document.getElementById('bigWaveTimerText'),
+        bigWaveCountdown: document.getElementById('bigWaveCountdown'),
         finalScore: document.getElementById('finalScore'),
         gameOverText: document.getElementById('gameOverText'),
-        shopCashDisplay: document.getElementById('shopCashDisplay'),
-        shopItemsContainer: document.getElementById('shopItemsContainer'),
-        highScoresBody: document.getElementById('highScoresBody'),
         notificationContainer: document.getElementById('notificationContainer'),
-        inGameUpgrades: document.getElementById('inGameUpgrades'),
-        upgradesList: document.getElementById('upgradesList'),
-        powersPanel: document.getElementById('powersPanel'),
-        powersList: document.getElementById('powersList'),
-        // Boutons pour EventListeners
         startGameBtn: document.getElementById('startGameBtn'),
         showRulesBtnMenu: document.getElementById('showRulesBtnMenu'),
         restartGameBtn: document.getElementById('restartGameBtn'),
         goToMenuBtnGameOver: document.getElementById('goToMenuBtnGameOver'),
         goToMenuBtnPause: document.getElementById('goToMenuBtnPause'),
         resumeGameBtn: document.getElementById('resumeGameBtn'),
-        openShopPauseBtn: document.getElementById('openShopPauseBtn'),
-        closeShopBtn: document.getElementById('closeShopBtn'),
-        shopButton: document.getElementById('shopButton'),
         pauseButton: document.getElementById('pauseButton'),
+        gameScreenBorderEffect: document.getElementById('gameScreenBorderEffect'),
     };
-    UI.cacheUiElements(uiElements);
 
-    let gameState = 'menu';
-    let isShopOverlayOpen = false;
+    UIManager.cacheUiElements(uiElements);
+    Effects.initializeEffects(uiElements);
+
+    let isShopOverlayOpen = false; // Non utilisé pour l'instant
     let camera = { x: 0, y: 0 };
     let gameElements = { cubes: new Map(), buildings: new Map(), obstacles: [], powerUps: [] };
     let baseCore = {
-        x: 0, y: 0,
-        health: Config.BASE_MAX_HEALTH,
-        radius: Config.GRID_SIZE * 0.6,
+        x: 0, y: 0, health: Config.BASE_MAX_HEALTH, radius: Config.GRID_SIZE * 0.6,
         damage: Config.BASE_CORE_TURRET_INITIAL_DAMAGE,
         range: Config.GRID_SIZE * Config.BASE_CORE_TURRET_INITIAL_RANGE_FACTOR,
         fireRate: Config.BASE_CORE_TURRET_INITIAL_FIRE_RATE,
-        lastShotTime: 0,
-        shootingTarget: null
+        lastShotTime: 0, shootingTarget: null
     };
     let gameStats = {};
     let keys = {};
-    let lastObstacleSpawn = 0;
-    let animationFrame;
-    let highScores = Storage.loadHighScores();
-    let currentBuildingToPlaceRef = { building: null, itemConfig: null };
-    let lastMousePosRef = { x:0, y:0 };
+    let animationFrame = null;
+    // let highScores = Storage.loadHighScores ? Storage.loadHighScores() : []; // Commenté
+    let currentBuildingToPlaceRef = { building: null, itemConfig: null }; // Même si non utilisé activement, EventListeners.js peut l'attendre
+    let lastMousePosRef = { x: 0, y: 0 };
     let isMouseDownRef = { value: false };
-    let lastPaintedGridCell = { x: null, y: null };
+    let lastPaintedGridCell = { x: null, y: null }; // Pour la logique de dessin de cube future
+
+    function addObstacleToGame(obstacleData) {
+        if (obstacleData) {
+            console.log("[Main] Ajout d'un obstacle au jeu. Propriété 'speed':", obstacleData.speed, "Objet complet:", JSON.parse(JSON.stringify(obstacleData)));
+            gameElements.obstacles.push(obstacleData);
+        } else {
+            console.warn("[Main] Tentative d'ajouter un obstacleData null/undefined.");
+        }
+    }
+    WaveManager.initializeWaveManager(addObstacleToGame);
 
     function resizeCanvasAndRender() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        if (gameStats && typeof gameStats === 'object') { // Vérifier que gameStats est initialisé
+        if (gameStats && typeof gameStats === 'object' && Object.keys(gameStats).length > 0) {
             gameStats.canvasWidth = canvas.width;
             gameStats.canvasHeight = canvas.height;
         }
-        if(gameState !== 'menu' && gameState !== 'loading') render();
+        const currentState = GameState.getGameState();
+        if(currentState !== GameState.GameStates.MENU && currentState !== GameState.GameStates.LOADING) {
+            render();
+        } else if (currentState === GameState.GameStates.MENU) {
+             // Optionnel: dessiner un fond statique pour le menu si le canvas est visible derrière
+             ctx.fillStyle = '#101018'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
     }
 
     function startGame() {
-        UI.setOverlayDisplay(uiElements.menu, false);
-        UI.setElementDisplay(uiElements.uiStats, true);
-        UI.setElementDisplay(uiElements.objectivesDisplay, true);
-        UI.setElementDisplay(uiElements.instructions, true);
-        UI.setElementDisplay(uiElements.gameControls, true);
-        UI.setElementDisplay(uiElements.baseHealthBarContainer, true);
-        UI.setElementDisplay(uiElements.inGameUpgrades, true);
-        UI.setElementDisplay(uiElements.powersPanel, true);
+        UIManager.setOverlayDisplay(uiElements.menu, false);
+        UIManager.setElementDisplay(uiElements.uiStats, true);
+        UIManager.setElementDisplay(uiElements.gameControls, true);
+        // UIManager.setElementDisplay(uiElements.baseHealthBarContainer, true); // Pas utilisé pour l'instant
 
-        gameState = 'playing';
-        isShopOverlayOpen = false; // S'assurer que le shop est fermé au début
+        GameState.setGameState(GameState.GameStates.LOADING); // Ou directement WAVE_PREPARATION
         resetGame();
-        Objectives.initializeObjectives(gameStats);
-        UI.updateBaseHealthBarUI(baseCore.health);
-        UI.renderInGameUpgradesUI(InGameUpgrades.getUpgradesState(), gameStats.cash, uiElements.upgradesList, handlePurchaseInGameUpgrade);
-        UI.renderPowersUI(Powers.getPowersState(), uiElements.powersList, handleActivatePower, Date.now());
-        gameLoop();
+        WaveManager.startNewGameWaveSystem();
+        UIManager.updateBaseHealthBarUI(baseCore.health); // Au cas où, mais c'est via baseHealthDisplay
+        if(uiElements.baseHealthDisplay && gameStats.baseCoreHealth !== undefined) {
+            const healthPercent = Math.max(0, (gameStats.baseCoreHealth / Config.BASE_MAX_HEALTH) * 100);
+            uiElements.baseHealthDisplay.textContent = `${healthPercent.toFixed(0)}%`;
+        }
+
+        if (!animationFrame) gameLoop();
     }
 
     function resetGame() {
-        gameElements.cubes.clear();
-        gameElements.buildings.clear();
         gameElements.obstacles.length = 0;
-        gameElements.powerUps.length = 0;
-
+        // On ne réinitialise pas cubes et buildings car ils ne sont pas utilisés pour l'instant
         baseCore.health = Config.BASE_MAX_HEALTH;
-        baseCore.damage = Config.BASE_CORE_TURRET_INITIAL_DAMAGE;
-        baseCore.range = Config.GRID_SIZE * Config.BASE_CORE_TURRET_INITIAL_RANGE_FACTOR;
-        baseCore.fireRate = Config.BASE_CORE_TURRET_INITIAL_FIRE_RATE;
-        baseCore.lastShotTime = 0;
-        baseCore.shootingTarget = null;
-
-        currentBuildingToPlaceRef.building = null;
-        currentBuildingToPlaceRef.itemConfig = null;
-        isMouseDownRef.value = false;
-        lastPaintedGridCell.x = null;
-        lastPaintedGridCell.y = null;
+        baseCore.lastShotTime = 0; baseCore.shootingTarget = null;
 
         gameStats = {
-            score: 0, wave: 1, cubesLeft: Config.INITIAL_CUBES, cash: Config.INITIAL_CASH,
+            score: 0, wave: 0,
+            cubesLeft: Config.INITIAL_CUBES, cash: Config.INITIAL_CASH,
             startTime: Date.now(), survivalTime: 0,
-            obstaclesDestroyed: 0, cashEarnedThisGame: Config.INITIAL_CASH, cubesPlaced: 0,
-            cubeMaxHpPercentBonus: 0,
-            cubeDamageBonus: 0,
-            coreRegenPerMin: 0,
-            turretDamageBonus: 0,
-            turretFireRateMultiplier: 1.0,
-            baseTurretDamageBonus: 0,
-            baseTurretFireRateMultiplier: 1.0,
-            isTurretOvercharged: false,
-            camera: camera,
-            canvasWidth: canvas.width,
-            canvasHeight: canvas.height
+            obstaclesDestroyed: 0, cashEarnedThisGame: Config.INITIAL_CASH,
+            baseCoreHealth: baseCore.health, // Pour l'UI texte
+            camera: camera, canvasWidth: canvas.width, canvasHeight: canvas.height,
+            isBossWaveActive: false
         };
-        Shop.resetShop();
-        InGameUpgrades.initializeInGameUpgrades();
-        InGameUpgrades.applyAllPassiveInGameUpgrades(gameStats);
-        Powers.initializePowers();
-
-        camera = { x: 0, y: 0 };
-        gameStats.camera = camera;
-        lastObstacleSpawn = Date.now();
-
-        UI.updateStatsUI(gameStats, gameElements);
-        UI.updateBaseHealthBarUI(baseCore.health);
-        // Objectives.initializeObjectives(gameStats); // Déjà appelé dans startGame après resetGame
-        UI.renderInGameUpgradesUI(InGameUpgrades.getUpgradesState(), gameStats.cash, uiElements.upgradesList, handlePurchaseInGameUpgrade);
-        UI.renderPowersUI(Powers.getPowersState(), uiElements.powersList, handleActivatePower, Date.now());
+        camera = { x: 0, y: 0 }; gameStats.camera = camera;
+        // lastObstacleSpawn est géré par WaveManager
+        UIManager.updateStatsUI(gameStats, gameElements);
+        UIManager.resetWaveStartMessageTracker();
     }
 
     function gameLoop() {
-        if (gameState === 'gameOver' || gameState === 'menu') {
+        const currentState = GameState.getGameState();
+        if (currentState === GameState.GameStates.GAME_OVER || currentState === GameState.GameStates.MENU) {
             if (animationFrame) cancelAnimationFrame(animationFrame);
-            animationFrame = null;
-            return;
+            animationFrame = null; return;
         }
-
-        if (gameState === 'playing') {
-            const now = Date.now();
+        const now = Date.now();
+        if (currentState === GameState.GameStates.WAVE_PREPARATION || currentState === GameState.GameStates.WAVE_IN_PROGRESS) {
             update(now);
-        } else if (gameState === 'paused') {
-            // On pourrait vouloir mettre à jour certains éléments UI même en pause (ex: cooldowns des pouvoirs)
-            const now = Date.now();
-            Powers.updateActivePowers(now, gameStats); // Pour que les durées de pouvoirs s'écoulent
-            if (uiElements.powersList.style.display !== 'none') { // Si le panneau est visible
-                 UI.renderPowersUI(Powers.getPowersState(), uiElements.powersList, handleActivatePower, now);
-            }
+        } else if (currentState === GameState.GameStates.PAUSED) {
+            // Rien à mettre à jour en pause pour l'instant
         }
         render();
         animationFrame = requestAnimationFrame(gameLoop);
@@ -185,155 +167,167 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function update(now) {
         gameStats.survivalTime = Math.floor((now - gameStats.startTime) / 1000);
-        // La caméra ne bouge que si le shop n'est pas l'overlay actif ET qu'on n'est pas en train de placer un bâtiment
-        if (!isShopOverlayOpen && !currentBuildingToPlaceRef.building && gameState === 'playing') {
+        gameStats.wave = WaveManager.getCurrentWaveNumber(); // Toujours mettre à jour la vague
+        if (baseCore) { // S'assurer que baseCore est initialisé
+             gameStats.baseCoreHealth = baseCore.health;
+        }
+
+
+        if (!isShopOverlayOpen) { // isShopOverlayOpen est toujours pertinent pour les inputs
             handleCameraMovement();
-        } else if (isShopOverlayOpen && currentBuildingToPlaceRef.building) {
-            // Permettre le mouvement de la caméra si on est en mode placement, même si le shop est techniquement "ouvert"
-            // Mais on ne veut peut-être pas ça, pour forcer le joueur à se concentrer sur le placement.
-            // Pour l'instant, on bloque le mouvement WASD si le shop est ouvert.
-            // Le joueur utilisera la souris pour voir où placer.
         }
 
-        const timeDifficulty = Math.floor(gameStats.survivalTime / (Config.WAVE_DURATION / 1.6));
-        const currentOverallDifficulty = gameStats.wave + timeDifficulty;
+        WaveManager.updateWaveManager(now, gameStats, camera, canvas, baseCore, gameElements);
+        AISystem.updateEnemyAIAndMovement(gameElements, baseCore, gameStats);
 
-        const spawnRate = Math.max(Config.OBSTACLE_SPAWN_RATE_BASE - currentOverallDifficulty * Config.OBSTACLE_SPAWN_RATE_DIFFICULTY_FACTOR, Config.OBSTACLE_SPAWN_MIN_RATE);
-        if (now - lastObstacleSpawn > spawnRate) {
-            let obstacleCount;
-            if (gameStats.wave < 3) obstacleCount = 1;
-            else if (gameStats.wave < 7) obstacleCount = 1 + Math.floor(currentOverallDifficulty / 10);
-            else if (gameStats.wave < 12) obstacleCount = 2 + Math.floor(currentOverallDifficulty / 12);
-            else obstacleCount = 2 + Math.floor(currentOverallDifficulty / 7);
-            obstacleCount = Math.max(1, Math.min(obstacleCount, 8));
-
-            for (let i = 0; i < obstacleCount; i++) {
-                const individualEnemyDifficulty = Math.max(1, Math.floor(gameStats.wave * 0.6) + Math.floor(timeDifficulty * 0.4));
-                const newObstacle = GameObjects.createObstacle(individualEnemyDifficulty, gameStats.wave, camera, canvas, baseCore);
-                if (newObstacle) gameElements.obstacles.push(newObstacle);
+        // --- MISE À JOUR DE LA LOGIQUE DES BÂTIMENTS ET DU NOYAU (Logique de tir/production) ---
+        // Noyau
+        if (baseCore && typeof baseCore.updateLogic === 'function') {
+            baseCore.updateLogic(now, gameElements, gameStats);
+        } else if (baseCore) { // Fallback si pas de méthode updateLogic
+            let effectiveBaseFireRate = (baseCore.fireRate * (gameStats.baseTurretFireRateMultiplier || 1.0));
+            // La logique pour isTurretOvercharged serait ici si PowersPanel était actif
+            // if (gameStats.isTurretOvercharged && Config.POWERS_CONFIG) { ... }
+            if (now - baseCore.lastShotTime > effectiveBaseFireRate) {
+                tempHandleBaseCoreShooting(now);
             }
-            lastObstacleSpawn = now;
         }
-
-        if (Math.random() < Config.POWERUP_SPAWN_CHANCE_BASE + gameStats.survivalTime * Config.POWERUP_SPAWN_CHANCE_TIME_FACTOR) {
-            gameElements.powerUps.push(GameObjects.createPowerUp(gameStats.wave, camera));
-        }
-
+        // Bâtiments construits
         gameElements.buildings.forEach((building, key) => {
-            if (building.type === 'generator' && building.lastGenTime && now - building.lastGenTime > building.interval) {
-                gameStats.cubesLeft += building.productionRate;
-                building.lastGenTime = now;
-                UI.showNotification(`+${building.productionRate} 🧊 du générateur`, "info");
-            } else if (building.type === 'turret') {
-                let effectiveFireRate = (building.fireRate || Config.TURRET_BASE_FIRE_RATE) * (gameStats.turretFireRateMultiplier || 1.0);
-                if (gameStats.isTurretOvercharged) {
-                    const overchargeConfig = Config.POWERS_CONFIG.find(p => p.id === 'turretOvercharge');
-                    if (overchargeConfig) effectiveFireRate *= overchargeConfig.fireRateMultiplierEffect;
+            if (typeof building.updateLogic === 'function') {
+                building.updateLogic(now, gameElements, gameStats, key.split(',').map(Number));
+            } else { // Fallback
+                if (building.type === 'turret') {
+                    let effectiveFireRate = (building.fireRate || Config.TURRET_BASE_FIRE_RATE) * (gameStats.turretFireRateMultiplier || 1.0);
+                    // if (gameStats.isTurretOvercharged && Config.POWERS_CONFIG) { ... }
+                    if (now - building.lastShotTime > effectiveFireRate) {
+                        tempHandleTurretShooting(building, key.split(',').map(Number));
+                    }
                 }
-                if (now - building.lastShotTime > effectiveFireRate) {
-                    handleTurretShooting(building, key.split(',').map(Number));
-                }
-            } else if (building.type === 'bank' && building.lastGenTime && now - building.lastGenTime > building.interval) {
-                const cashGenerated = building.cashPerInterval || 0; // Utiliser 0 si undefined
-                gameStats.cash += cashGenerated;
-                gameStats.cashEarnedThisGame += cashGenerated;
-                building.lastGenTime = now;
-                //UI.showNotification(`+${cashGenerated}💲 de la banque`, "success");
+                // Ajouter ici la logique de fallback pour générateurs et banques si nécessaire
             }
         });
+        // --- FIN MISE À JOUR BÂTIMENTS ---
 
-        updateGameElements();
+        updateGameElements(); // Contient le mouvement PHYSIQUE des obstacles (déjà fait par AISystem) et les COLLISIONS
 
-        if (gameStats.coreRegenPerMin > 0 && baseCore.health < Config.BASE_MAX_HEALTH) {
-            const regenThisFrame = (gameStats.coreRegenPerMin / 60) * (16.666 / 1000);
+        // Régénération du Noyau (si la stat existe dans gameStats)
+        if (gameStats.coreRegenPerMin > 0 && baseCore && baseCore.health < Config.BASE_MAX_HEALTH) {
+            const regenThisFrame = (gameStats.coreRegenPerMin / 60) * (16.666 / 1000); // approx 1/60 de seconde
             baseCore.health = Math.min(Config.BASE_MAX_HEALTH, baseCore.health + regenThisFrame);
-            UI.updateBaseHealthBarUI(baseCore.health);
+            // UIManager.updateBaseHealthBarUI(baseCore.health); // UIManager.updateStatsUI le fait via gameStats.baseCoreHealth
         }
 
-        let effectiveBaseFireRate = (baseCore.fireRate * (gameStats.baseTurretFireRateMultiplier || 1.0));
-        if (gameStats.isTurretOvercharged) {
-            const overchargeConfig = Config.POWERS_CONFIG.find(p => p.id === 'turretOvercharge');
-            if (overchargeConfig) effectiveBaseFireRate *= overchargeConfig.fireRateMultiplierEffect;
-        }
-        if (now - baseCore.lastShotTime > effectiveBaseFireRate) {
-            handleBaseCoreShooting(now);
-        }
+        // --- GESTION DES EFFETS DE BORDURE D'ÉCRAN ---
+        const currentState = GameState.getGameState();
+        if (currentState === GameState.GameStates.WAVE_IN_PROGRESS) {
+            // L'effet 'wave_start_flash' est un one-shot déclenché par WaveManager.beginWaveAttack()
+            // et se gère lui-même via CSS/timeout JS dans effects.js.
+            // On ne le gère pas de manière persistante ici.
 
-        const newWave = Math.floor(gameStats.survivalTime / Config.WAVE_DURATION) + 1;
-            if (newWave > gameStats.wave) {
-            gameStats.wave = newWave;
-            gameStats.cubesLeft += 5 + Math.floor(newWave / 3);
-            const cashBonus = 25 + newWave * 5;
-            gameStats.cash += cashBonus;
-            gameStats.cashEarnedThisGame += cashBonus;
-            UI.showNotification(`🌊 VAGUE ${newWave} ! ...`, "info");
-            Objectives.initializeObjectives(gameStats);
+            if (gameStats.isBossWaveActive) { // Ce flag est mis à jour par WaveManager
+                Effects.triggerScreenBorderEffect('boss_active');
+            } else {
+                // Si ce n'est pas une vague de boss, s'assurer que l'effet 'boss_active' est enlevé.
+                // L'effet 'player_damage' se gère tout seul (disparaît après un court instant).
+                // L'effet 'wave_start_flash' se gère tout seul.
+                // Donc, on veut seulement enlever 'boss_active' s'il n'est plus pertinent.
+                Effects.clearScreenBorderEffect('boss_active');
+            }
+        } else if (currentState === GameState.GameStates.WAVE_PREPARATION) {
+            // Pendant la préparation, on pourrait vouloir un effet bleu subtil,
+            // ou simplement s'assurer que les effets de la vague précédente sont nettoyés.
+            // Pour l'instant, le grand timer est l'indicateur principal.
+            Effects.clearScreenBorderEffect('boss_active'); // Nettoyer l'effet boss
+            // L'effet 'wave_start_flash' se sera déjà terminé.
+        } else { // MENU, PAUSED, GAME_OVER, LOADING
+            // Assurer qu'aucun effet de bordure n'est actif quand on n'est pas en phase de jeu active.
+            Effects.triggerScreenBorderEffect('none');
         }
+        // L'effet 'player_damage' est déclenché directement par CollisionSystem.js en appelant Effects.triggerScreenBorderEffect.
 
-        gameStats.score += Math.floor(currentOverallDifficulty / 25);
-        Objectives.checkObjectives(gameStats);
-        Powers.updateActivePowers(now, gameStats);
-        if (uiElements.powersPanel.style.display !== 'none' && gameStats.survivalTime % 1 === 0) {
-             UI.renderPowersUI(Powers.getPowersState(), uiElements.powersList, handleActivatePower, now);
-        }
-        UI.updateStatsUI(gameStats, gameElements);
+        // Calcul du score passif
+        const timeDifficultyForScore = Math.floor(gameStats.survivalTime / (Config.WAVE_DURATION / 1.8)); // Ajuster le diviseur si besoin
+        const currentOverallDifficultyForScore = gameStats.wave + timeDifficultyForScore;
+        gameStats.score = (gameStats.score || 0) + Math.floor(currentOverallDifficultyForScore / 25);
+
+
+        // ObjectiveManager.checkObjectives(gameStats); // Commenté pour l'instant
+        // PowersPanel.updateActivePowers(now, gameStats); // Commenté pour l'instant
+        // if (uiElements.powersPanel && uiElements.powersPanel.style.display !== 'none' && gameStats.survivalTime % 1 === 0) {
+        //      UIManager.renderPowersUI(PowersPanel.getPowersState(), uiElements.powersList, handleActivatePower, now);
+        // }
+
+        UIManager.updateStatsUI(gameStats, gameElements);
     }
 
     function updateGameElements() {
-        for (let obsIdx = gameElements.obstacles.length - 1; obsIdx >= 0; obsIdx--) {
-            const obstacle = gameElements.obstacles[obsIdx];
-            if (typeof obstacle.vx === 'number' && typeof obstacle.vy === 'number') {
-                obstacle.x += obstacle.vx;
-                obstacle.y += obstacle.vy;
-            }
-        }
-        if (Collision.handleObstacleCollisions(gameElements, gameStats, baseCore, endGame)) {
-            return;
-        }
-        for (let puIdx = gameElements.powerUps.length - 1; puIdx >=0; puIdx--) {
-            const pu = gameElements.powerUps[puIdx];
-            if (Collision.handlePowerUpProximity(pu, camera)) {
-                GameController.handlePowerUpCollection(pu, gameStats, baseCore);
-                gameElements.powerUps.splice(puIdx, 1);
-            } else if (Date.now() - pu.spawnTime > Config.POWERUP_DESPAWN_TIME) {
-                gameElements.powerUps.splice(puIdx, 1);
-            }
+        // Le mouvement physique des obstacles est maintenant dans AISystem.updateEnemyAIAndMovement
+
+        if (CollisionSystem.handleObstacleCollisions(gameElements, gameStats, baseCore, endGame)) {
+            return; // Jeu terminé
         }
     }
 
-    function handleTurretShooting(turret, turretGridPos) {
+    function tempHandleTurretShooting(turret, turretGridPos) {
         let closestEnemy = null;
-        const turretRange = (turret.range || Config.GRID_SIZE * Config.TURRET_BASE_RANGE_FACTOR); // Utiliser une valeur par défaut si non définie
+        const turretRange = (turret.range || Config.GRID_SIZE * Config.TURRET_BASE_RANGE_FACTOR);
         let minDistanceSq = turretRange * turretRange;
-
         const turretWorldX = turretGridPos[0] * Config.GRID_SIZE + Config.GRID_SIZE / 2;
         const turretWorldY = turretGridPos[1] * Config.GRID_SIZE + Config.GRID_SIZE / 2;
 
         gameElements.obstacles.forEach(enemy => {
-            const distX = enemy.x - turretWorldX;
-            const distY = enemy.y - turretWorldY;
+            const distX = enemy.x - turretWorldX; const distY = enemy.y - turretWorldY;
             const distanceSq = distX * distX + distY * distY;
-            if (distanceSq < minDistanceSq) {
-                minDistanceSq = distanceSq;
-                closestEnemy = enemy;
-            }
+            if (distanceSq < minDistanceSq) { minDistanceSq = distanceSq; closestEnemy = enemy; }
         });
 
         if (closestEnemy) {
             const actualTurretDamage = (turret.damage || Config.TURRET_BASE_DAMAGE) + (gameStats.turretDamageBonus || 0);
             closestEnemy.hp -= actualTurretDamage;
-            turret.lastShotTime = Date.now();
+            turret.lastShotTime = Date.now(); // Mettre à jour sur l'instance de la tourelle
             turret.shootingTarget = { x: closestEnemy.x, y: closestEnemy.y };
-            setTimeout(() => { turret.shootingTarget = null; }, 100);
+            setTimeout(() => { if(turret) turret.shootingTarget = null; }, 100);
 
             if (closestEnemy.hp <= 0) {
                 const enemyIndex = gameElements.obstacles.indexOf(closestEnemy);
                 if (enemyIndex > -1) {
                     gameElements.obstacles.splice(enemyIndex, 1);
-                    gameStats.score += closestEnemy.scoreValue;
-                    gameStats.cash += closestEnemy.cashValue;
-                    gameStats.cashEarnedThisGame += closestEnemy.cashValue;
-                    gameStats.obstaclesDestroyed++;
+                    if(gameStats && closestEnemy) {
+                        gameStats.score += closestEnemy.scoreValue || 10;
+                        gameStats.cash += closestEnemy.cashValue || 1;
+                        gameStats.obstaclesDestroyed = (gameStats.obstaclesDestroyed || 0) + 1;
+                    }
+                }
+            }
+        }
+    }
+
+    function tempHandleBaseCoreShooting(now) { // 'now' est déjà disponible dans la portée de update
+        let closestEnemy = null;
+        const currentBaseRange = (baseCore.range || Config.GRID_SIZE * Config.BASE_CORE_TURRET_INITIAL_RANGE_FACTOR) ;
+        let minDistanceSq = currentBaseRange * currentBaseRange;
+        gameElements.obstacles.forEach(enemy => {
+            const distX = enemy.x - baseCore.x; const distY = enemy.y - baseCore.y;
+            const distanceSq = distX * distX + distY * distY;
+            if (distanceSq < minDistanceSq) { minDistanceSq = distanceSq; closestEnemy = enemy; }
+        });
+        if (closestEnemy) {
+            const actualBaseDamage = (baseCore.damage || Config.BASE_CORE_TURRET_INITIAL_DAMAGE) + (gameStats.baseTurretDamageBonus || 0);
+            closestEnemy.hp -= actualBaseDamage;
+            baseCore.lastShotTime = now; // Utiliser 'now' qui vient de la boucle update
+            baseCore.shootingTarget = { x: closestEnemy.x, y: closestEnemy.y };
+            setTimeout(() => { if(baseCore) baseCore.shootingTarget = null; }, 100);
+
+            if (closestEnemy.hp <= 0) {
+                const enemyIndex = gameElements.obstacles.indexOf(closestEnemy);
+                if (enemyIndex > -1) {
+                    gameElements.obstacles.splice(enemyIndex, 1);
+                    if(gameStats && closestEnemy) {
+                        gameStats.score += closestEnemy.scoreValue || 10;
+                        gameStats.cash += closestEnemy.cashValue || 1;
+                        gameStats.obstaclesDestroyed = (gameStats.obstaclesDestroyed || 0) + 1;
+                    }
                 }
             }
         }
@@ -343,487 +337,155 @@ document.addEventListener('DOMContentLoaded', () => {
         let closestEnemy = null;
         const currentBaseRange = (baseCore.range || Config.GRID_SIZE * Config.BASE_CORE_TURRET_INITIAL_RANGE_FACTOR) ;
         let minDistanceSq = currentBaseRange * currentBaseRange;
-
         gameElements.obstacles.forEach(enemy => {
-            const distX = enemy.x - baseCore.x;
-            const distY = enemy.y - baseCore.y;
+            const distX = enemy.x - baseCore.x; const distY = enemy.y - baseCore.y;
             const distanceSq = distX * distX + distY * distY;
-            if (distanceSq < minDistanceSq) {
-                minDistanceSq = distanceSq;
-                closestEnemy = enemy;
-            }
+            if (distanceSq < minDistanceSq) { minDistanceSq = distanceSq; closestEnemy = enemy; }
         });
-
         if (closestEnemy) {
             const actualBaseDamage = (baseCore.damage || Config.BASE_CORE_TURRET_INITIAL_DAMAGE) + (gameStats.baseTurretDamageBonus || 0);
             closestEnemy.hp -= actualBaseDamage;
             baseCore.lastShotTime = now;
             baseCore.shootingTarget = { x: closestEnemy.x, y: closestEnemy.y };
-            setTimeout(() => { baseCore.shootingTarget = null; }, 100);
+            setTimeout(() => { if(baseCore) baseCore.shootingTarget = null; }, 100); // Vérifier si baseCore existe encore
 
             if (closestEnemy.hp <= 0) {
                 const enemyIndex = gameElements.obstacles.indexOf(closestEnemy);
                 if (enemyIndex > -1) {
                     gameElements.obstacles.splice(enemyIndex, 1);
-                    gameStats.score += closestEnemy.scoreValue;
-                    gameStats.cash += closestEnemy.cashValue;
-                    gameStats.cashEarnedThisGame += closestEnemy.cashValue;
-                    gameStats.obstaclesDestroyed++;
+                    if(gameStats) { // Vérifier si gameStats existe
+                        gameStats.score += closestEnemy.scoreValue || 10; // Valeur par défaut
+                        gameStats.cash += closestEnemy.cashValue || 1;
+                        gameStats.obstaclesDestroyed = (gameStats.obstaclesDestroyed || 0) + 1;
+                    }
                 }
             }
         }
     }
 
     function handleCameraMovement() {
-        if (gameState !== 'playing' || isShopOverlayOpen || currentBuildingToPlaceRef.building) return;
-        let newCamX = camera.x;
-        let newCamY = camera.y;
-        if (keys['w']) newCamY -= Config.CAMERA_SPEED;
-        if (keys['s']) newCamY += Config.CAMERA_SPEED;
-        if (keys['a']) newCamX -= Config.CAMERA_SPEED;
-        if (keys['d']) newCamX += Config.CAMERA_SPEED;
-        const collisionResult = Collision.checkCameraCollision(newCamX, newCamY, camera, gameElements);
-        if (collisionResult.canMoveX) camera.x = newCamX;
-        if (collisionResult.canMoveY) camera.y = newCamY;
-        gameStats.camera = camera;
+        if (isShopOverlayOpen || GameState.getGameState() !== GameState.GameStates.WAVE_IN_PROGRESS && GameState.getGameState() !== GameState.GameStates.WAVE_PREPARATION) return;
+        let newCamX = camera.x; let newCamY = camera.y;
+        if (keys['w']) newCamY -= Config.CAMERA_SPEED; if (keys['s']) newCamY += Config.CAMERA_SPEED;
+        if (keys['a']) newCamX -= Config.CAMERA_SPEED; if (keys['d']) newCamX += Config.CAMERA_SPEED;
+        // Pas de collision caméra pour l'instant pour simplifier
+        camera.x = newCamX; camera.y = newCamY;
+        if(gameStats) gameStats.camera = camera;
     }
 
     function render() {
-        ctx.fillStyle = '#2a2a2a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.save();
-        ctx.translate(canvas.width / 2 - camera.x, canvas.height / 2 - camera.y);
-
-        const gs = Config.GRID_SIZE;
-        const viewBounds = {
-            minX: camera.x - canvas.width/2 - gs, maxX: camera.x + canvas.width/2 + gs,
-            minY: camera.y - canvas.height/2 - gs, maxY: camera.y + canvas.height/2 + gs,
+        if (!ctx || !gameStats || Object.keys(gameStats).length === 0) return;
+        const uiStateForRendering = {
+            currentBuildingToPlaceRef: null, // Pas de placement de bâtiment pour l'instant
+            lastMousePosRef: lastMousePosRef,
+            isShopOverlayOpen: isShopOverlayOpen
         };
-        ctx.strokeStyle = Config.COLOR_GRID; ctx.lineWidth = 1;
-        for (let gx = Math.floor(viewBounds.minX / gs) * gs; gx < viewBounds.maxX; gx += gs) {
-            ctx.beginPath(); ctx.moveTo(gx, viewBounds.minY); ctx.lineTo(gx, viewBounds.maxY); ctx.stroke();
-        }
-        for (let gy = Math.floor(viewBounds.minY / gs) * gs; gy < viewBounds.maxY; gy += gs) {
-            ctx.beginPath(); ctx.moveTo(viewBounds.minX, gy); ctx.lineTo(viewBounds.maxX, gy); ctx.stroke();
-        }
-
-        ctx.fillStyle = baseCore.health > Config.BASE_MAX_HEALTH * 0.6 ? Config.COLOR_BASE_HEALTHY : (baseCore.health > Config.BASE_MAX_HEALTH * 0.3 ? Config.COLOR_BASE_DAMAGED : Config.COLOR_BASE_CRITICAL);
-        ctx.beginPath(); ctx.arc(baseCore.x, baseCore.y, baseCore.radius, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3; ctx.stroke();
-        ctx.fillStyle = 'white'; ctx.font = '12px Courier New'; ctx.textAlign = 'center'; ctx.fillText('CORE', baseCore.x, baseCore.y + 4);
-
-        // Ligne de tir pour le Noyau
-        if (baseCore.shootingTarget) {
-            ctx.beginPath(); ctx.moveTo(baseCore.x, baseCore.y); ctx.lineTo(baseCore.shootingTarget.x, baseCore.shootingTarget.y);
-            ctx.strokeStyle = 'rgba(180, 220, 255, 0.7)'; ctx.lineWidth = 2; ctx.globalAlpha = 0.7; ctx.stroke();
-            ctx.fillStyle = 'rgba(180, 220, 255, 0.7)'; ctx.beginPath(); ctx.arc(baseCore.shootingTarget.x, baseCore.shootingTarget.y, 4, 0, Math.PI * 2); ctx.fill();
-            ctx.globalAlpha = 1.0;
-        }
-
-
-        gameElements.cubes.forEach((cube, key) => {
-            const [gridX, gridY] = key.split(',').map(Number);
-            const cubeScreenX = gridX * gs; const cubeScreenY = gridY * gs;
-            if (cubeScreenX < viewBounds.maxX && cubeScreenX + gs > viewBounds.minX && cubeScreenY < viewBounds.maxY && cubeScreenY + gs > viewBounds.minY) {
-                ctx.fillStyle = cube.color;
-                ctx.strokeStyle = '#909090'; ctx.lineWidth = 2;
-                ctx.fillRect(cubeScreenX, cubeScreenY, gs, gs);
-                ctx.strokeRect(cubeScreenX, cubeScreenY, gs, gs);
-            }
-        });
-
-        gameElements.buildings.forEach((building, key) => {
-            const [gridX, gridY] = key.split(',').map(Number);
-            const buildingCenterX = gridX * gs + gs / 2;
-            const buildingCenterY = gridY * gs + gs / 2;
-             if (buildingCenterX < viewBounds.maxX + gs && buildingCenterX > viewBounds.minX - gs && buildingCenterY < viewBounds.maxY + gs && buildingCenterY > viewBounds.minY - gs) {
-                ctx.fillStyle = building.color || '#00CED1';
-                ctx.beginPath();
-                if (building.type === 'turret') {
-                    ctx.arc(buildingCenterX, buildingCenterY, gs * 0.35, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillRect(buildingCenterX - gs * 0.1, buildingCenterY - gs * 0.45, gs * 0.2, gs * 0.3);
-                } else {
-                    ctx.arc(buildingCenterX, buildingCenterY, gs * 0.4, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-                ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
-
-                if (building.icon && building.type !== 'turret') {
-                    ctx.fillStyle = 'black'; ctx.font = `${gs*0.4}px Arial`; ctx.textAlign = 'center';
-                    ctx.fillText(building.icon, buildingCenterX, buildingCenterY + gs * 0.15);
-                }
-                 if (building.hp !== undefined && building.maxHp !== undefined) {
-                    const hpPercent = Math.max(0, building.hp / building.maxHp);
-                    ctx.fillStyle = hpPercent > 0.6 ? 'lightgreen' : hpPercent > 0.3 ? 'yellow' : 'red';
-                    const barWidth = gs * 0.8; const barX = buildingCenterX - barWidth / 2; const barY = buildingCenterY - gs * 0.5 - 8;
-                    ctx.fillRect(barX , barY, barWidth * hpPercent, 5);
-                    ctx.strokeStyle = 'rgba(50,50,50,0.7)'; ctx.lineWidth = 1; ctx.strokeRect(barX, barY, barWidth, 5);
-                }
-                if (building.type === 'turret' && building.shootingTarget) {
-                    ctx.beginPath(); ctx.moveTo(buildingCenterX, buildingCenterY); ctx.lineTo(building.shootingTarget.x, building.shootingTarget.y);
-                    ctx.strokeStyle = 'rgba(255, 200, 100, 0.7)'; ctx.lineWidth = 2; ctx.globalAlpha = 0.7; ctx.stroke();
-                    ctx.fillStyle = 'rgba(255, 200, 100, 0.7)'; ctx.beginPath(); ctx.arc(building.shootingTarget.x, building.shootingTarget.y, 4, 0, Math.PI * 2); ctx.fill();
-                    ctx.globalAlpha = 1.0;
-                }
-            }
-        });
-
-        gameElements.obstacles.forEach(obstacle => {
-            if (obstacle.x < viewBounds.maxX + obstacle.radius && obstacle.x > viewBounds.minX - obstacle.radius && obstacle.y < viewBounds.maxY + obstacle.radius && obstacle.y > viewBounds.minY - obstacle.radius) {
-                ctx.fillStyle = obstacle.color;
-                ctx.beginPath(); ctx.arc(obstacle.x, obstacle.y, obstacle.radius, 0, Math.PI * 2); ctx.fill();
-                const hpPercent = Math.max(0, obstacle.hp / obstacle.maxHp);
-                ctx.fillStyle = hpPercent > 0.6 ? 'lightgreen' : hpPercent > 0.3 ? 'yellow' : 'red';
-                ctx.fillRect(obstacle.x - obstacle.radius, obstacle.y - obstacle.radius - 8, obstacle.radius * 2 * hpPercent, 5);
-                ctx.strokeStyle = 'rgba(50,50,50,0.7)'; ctx.lineWidth = 1; ctx.strokeRect(obstacle.x - obstacle.radius, obstacle.y - obstacle.radius - 8, obstacle.radius * 2, 5);
-            }
-        });
-        gameElements.powerUps.forEach(pu => {
-            if (pu.x < viewBounds.maxX + pu.radius && pu.x > viewBounds.minX - pu.radius && pu.y < viewBounds.maxY + pu.radius && pu.y > viewBounds.minY - pu.radius) {
-                ctx.fillStyle = pu.color; ctx.beginPath(); ctx.arc(pu.x, pu.y, pu.radius, 0, Math.PI * 2); ctx.fill();
-                ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.stroke();
-                ctx.fillStyle = '#2a2a2a'; ctx.font = `${pu.radius*0.8}px Arial`; ctx.textAlign = 'center'; ctx.fillText(pu.icon, pu.x, pu.y + pu.radius * 0.25);
-            }
-        });
-
-        if (currentBuildingToPlaceRef.building && (gameState === 'playing' || gameState === 'paused' || isShopOverlayOpen )) {
-            const gs = Config.GRID_SIZE;
-            const mouseWorld = getMouseWorldPosCallback(lastMousePosRef);
-            if (mouseWorld) {
-                const gridX = Math.floor(mouseWorld.x / gs); const gridY = Math.floor(mouseWorld.y / gs);
-                const key = `${gridX},${gridY}`;
-                const canPlace = !gameElements.cubes.has(key) && !gameElements.buildings.has(key) && !(gridX === 0 && gridY === 0);
-                ctx.globalAlpha = 0.5;
-                ctx.fillStyle = canPlace ? (currentBuildingToPlaceRef.building.color || '#00FF00') : 'red';
-                ctx.beginPath();
-                // Dessin spécifique pour le fantôme de la tourelle
-                if (currentBuildingToPlaceRef.building.type === 'turret') {
-                    ctx.arc(gridX * gs + gs / 2, gridY * gs + gs / 2, gs * 0.35, 0, Math.PI * 2);
-                    ctx.fill(); // Base
-                    ctx.fillRect((gridX * gs + gs / 2) - gs * 0.1, (gridY * gs + gs / 2) - gs * 0.45, gs * 0.2, gs * 0.3); // Canon
-                    // Dessiner la portée en mode placement
-                    ctx.beginPath();
-                    ctx.arc(gridX * gs + gs/2, gridY * gs + gs/2, currentBuildingToPlaceRef.building.range || Config.GRID_SIZE * Config.TURRET_BASE_RANGE_FACTOR, 0, Math.PI*2);
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-
-                } else { // Fantôme générique pour autres bâtiments
-                    ctx.arc(gridX * gs + gs / 2, gridY * gs + gs / 2, gs * 0.4, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-                ctx.globalAlpha = 1.0;
-            }
-        }
-        ctx.restore();
-
-        const playerScreenX = canvas.width / 2; const playerScreenY = canvas.height / 2;
-        ctx.fillStyle = 'rgba(0, 150, 255, 0.7)'; ctx.strokeStyle = 'white'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(playerScreenX, playerScreenY, 12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        RenderingSystem.renderGame(ctx, camera, gameElements, baseCore, gameStats, uiStateForRendering);
     }
 
-
-    function endGame(reason = "Votre base a été submergée.") {
-        if (gameState === 'gameOver') return;
-        gameState = 'gameOver';
+    function endGame(reason = "Noyau compromis.") {
+        GameState.setGameState(GameState.GameStates.GAME_OVER);
         isShopOverlayOpen = false;
-        UI.setOverlayDisplay(uiElements.gameOver, true);
-        [uiElements.uiStats, uiElements.objectivesDisplay, uiElements.instructions, uiElements.gameControls, uiElements.baseHealthBarContainer, uiElements.inGameUpgrades, uiElements.powersPanel].forEach(el => UI.setElementDisplay(el, false));
-        uiElements.finalScore.textContent = `Score: ${gameStats.score}`;
-        uiElements.gameOverText.textContent = `${reason} Vague Atteinte: ${gameStats.wave}. Temps Survécu: ${gameStats.survivalTime}s.`;
-        highScores = Storage.saveHighScore(gameStats.score, gameStats.wave, gameStats.survivalTime, highScores);
-        UI.displayHighScoresUI(highScores);
+        Effects.setScreenBorder('none');
+        Effects.triggerScreenBorderEffect('none');
+        UIManager.setOverlayDisplay(uiElements.gameOver, true);
+        [uiElements.uiStats, uiElements.instructions, uiElements.gameControls].forEach(el => UIManager.setElementDisplay(el, false));
+        if (uiElements.finalScore) uiElements.finalScore.textContent = `Score: ${gameStats.score || 0}`;
+        if (uiElements.gameOverText) uiElements.gameOverText.textContent = `${reason} Vague: ${gameStats.wave || 0}. Temps: ${gameStats.survivalTime || 0}s.`;
         if (animationFrame) { cancelAnimationFrame(animationFrame); animationFrame = null; }
     }
-
-    function restartGame() { UI.setOverlayDisplay(uiElements.gameOver, false); startGame(); }
-
+    function restartGame() { UIManager.setOverlayDisplay(uiElements.gameOver, false); startGame(); }
     function goToMenu() {
+        GameState.setGameState(GameState.GameStates.MENU);
         isShopOverlayOpen = false;
-        [uiElements.gameOver, uiElements.pauseMenu, uiElements.shopMenu, uiElements.uiStats, uiElements.objectivesDisplay, uiElements.instructions, uiElements.gameControls, uiElements.baseHealthBarContainer, uiElements.inGameUpgrades, uiElements.powersPanel].forEach(el => UI.setElementDisplay(el, false));
-        UI.setOverlayDisplay(uiElements.menu, true);
-        gameState = 'menu';
-        UI.displayHighScoresUI(highScores);
+        Effects.setScreenBorder('none');
+        Effects.triggerScreenBorderEffect('none');
+        [uiElements.gameOver, uiElements.pauseMenu, uiElements.uiStats, uiElements.instructions, uiElements.gameControls].forEach(el => UIManager.setElementDisplay(el, false));
+        UIManager.setOverlayDisplay(uiElements.menu, true);
         if (animationFrame) { cancelAnimationFrame(animationFrame); animationFrame = null; }
     }
 
     function togglePause() {
-        if (gameState === 'playing') {
-            gameState = 'paused';
-            isShopOverlayOpen = false;
-            UI.setOverlayDisplay(uiElements.shopMenu, false);
-            UI.setOverlayDisplay(uiElements.pauseMenu, true);
-            currentBuildingToPlaceRef.building = null;
-        } else if (gameState === 'paused') {
-            UI.setOverlayDisplay(uiElements.pauseMenu, false);
-            resumeGameFromSomeMenu(); // Va mettre gameState à 'playing'
+        const currentState = GameState.getGameState();
+        if (currentState === GameState.GameStates.WAVE_PREPARATION || currentState === GameState.GameStates.WAVE_IN_PROGRESS) {
+            GameState.setGameState(GameState.GameStates.PAUSED);
+            UIManager.setOverlayDisplay(uiElements.pauseMenu, true);
+        } else if (currentState === GameState.GameStates.PAUSED) {
+            UIManager.setOverlayDisplay(uiElements.pauseMenu, false);
+            const timeUntilWave = WaveManager.getTimeUntilNextWaveMs ? WaveManager.getTimeUntilNextWaveMs() : 0;
+            GameState.setGameState(timeUntilWave > 0 && WaveManager.getCurrentWaveNumber() > 0 ? GameState.GameStates.WAVE_PREPARATION : GameState.GameStates.WAVE_IN_PROGRESS);
+            if (!animationFrame) requestAnimationFrame(gameLoop);
         }
     }
-
-    function resumeGameFromSomeMenu() {
-        if(gameState === 'gameOver' || gameState === 'menu') return;
-        gameState = 'playing';
-        isShopOverlayOpen = false;
-        UI.setOverlayDisplay(uiElements.pauseMenu, false);
-        UI.setOverlayDisplay(uiElements.shopMenu, false);
-        currentBuildingToPlaceRef.building = null;
-        if (!animationFrame) { // S'assurer que la boucle redémarre si elle était arrêtée
-            animationFrame = requestAnimationFrame(gameLoop);
-        }
-    }
-
-    function openShop(isFromPauseMenu) {
-        if (gameState !== 'playing' && gameState !== 'paused') return;
-
-        if (isFromPauseMenu && gameState === 'paused') {
-            UI.setOverlayDisplay(uiElements.pauseMenu, false);
-        }
-        // Si gameState est 'playing', le jeu continue en arrière-plan.
-        // Si gameState est 'paused', on vient du menu pause, le jeu est déjà figé par l'état 'paused'.
-
-        isShopOverlayOpen = true;
-        UI.setOverlayDisplay(uiElements.shopMenu, true);
-        UI.updateShopCashUI(gameStats.cash);
-        UI.renderShopItemsUI(Shop.getShopItems(), gameStats.cash, uiElements.shopItemsContainer, handlePurchaseShopItem);
-    }
-
-    function closeShopAndResumePlay(manualClose = false) {
-        if (!isShopOverlayOpen && !currentBuildingToPlaceRef.building && !manualClose) {
-            // Si le shop n'est pas ouvert ET qu'on n'est pas en train de placer ET que ce n'est pas une fermeture manuelle,
-            // on ne fait rien (peut arriver si appelé plusieurs fois par erreur depuis handleBuyShopItem après que le shop soit déjà fermé).
-            // Si c'est une fermeture manuelle (bouton Fermer), on veut toujours exécuter la logique.
-             if (!manualClose && !isShopOverlayOpen) return;
-        }
-
-        isShopOverlayOpen = false;
-        UI.setOverlayDisplay(uiElements.shopMenu, false);
-
-        // Si on ferme MANUELLEMENT le shop (via bouton "FERMER") alors qu'un bâtiment était en attente,
-        // on annule ce placement.
-        if (manualClose && currentBuildingToPlaceRef.building) {
-            UI.showNotification("Placement de bâtiment annulé (shop fermé).", "info");
-            currentBuildingToPlaceRef.building = null;
-            currentBuildingToPlaceRef.itemConfig = null;
-        }
-        // Si la fermeture est due à un achat de bâtiment, currentBuildingToPlaceRef reste rempli
-        // et manualClose sera false (ou non fourni).
-
-        if (gameState === 'paused') {
-            UI.setOverlayDisplay(uiElements.pauseMenu, true);
-        } else if (gameState !== 'gameOver' && gameState !== 'menu') {
-            gameState = 'playing';
+    function resumeGameFromPause() { // Spécifique pour le bouton reprendre du menu pause
+        if (GameState.getGameState() === GameState.GameStates.PAUSED) {
+            UIManager.setOverlayDisplay(uiElements.pauseMenu, false);
+            const timeUntilWave = WaveManager.getTimeUntilNextWaveMs ? WaveManager.getTimeUntilNextWaveMs() : 0;
+            GameState.setGameState(timeUntilWave > 0 && WaveManager.getCurrentWaveNumber() > 0 ? GameState.GameStates.WAVE_PREPARATION : GameState.GameStates.WAVE_IN_PROGRESS);
             if (!animationFrame) requestAnimationFrame(gameLoop);
         }
     }
 
-    function handlePurchaseShopItem(itemId) {
-        // Passer `closeShopAndResumePlay` SANS argument, donc manualClose sera false par défaut
-        const purchaseResult = Shop.handleBuyShopItem(itemId, gameStats, baseCore, currentBuildingToPlaceRef, closeShopAndResumePlay);
-        if (purchaseResult.success) {
-            UI.updateStatsUI(gameStats, gameElements);
-            if (isShopOverlayOpen) { // Si le shop est toujours ouvert (ex: achat de consommable)
-                UI.updateShopCashUI(gameStats.cash);
-                UI.renderShopItemsUI(Shop.getShopItems(), gameStats.cash, uiElements.shopItemsContainer, handlePurchaseShopItem);
-            }
-            // ... (reste de la logique pour unlock et power_unlock)
-            const itemConfig = Config.SHOP_ITEMS_CONFIG.find(i => i.id === itemId);
-            if (itemConfig && itemConfig.type === 'unlock') {
-                InGameUpgrades.applyAllPassiveInGameUpgrades(gameStats);
-                UI.renderInGameUpgradesUI(InGameUpgrades.getUpgradesState(), gameStats.cash, uiElements.upgradesList, handlePurchaseInGameUpgrade);
-            }
-            if (itemConfig && itemConfig.type === 'power_unlock') {
-                UI.renderPowersUI(Powers.getPowersState(), uiElements.powersList, handleActivatePower, Date.now());
-            }
-        }
-    }
-
-    function handlePurchaseInGameUpgrade(upgradeId) {
-        const purchased = InGameUpgrades.tryPurchaseUpgrade(upgradeId, gameStats);
-        if (purchased) {
-            InGameUpgrades.applyAllPassiveInGameUpgrades(gameStats);
-            UI.updateStatsUI(gameStats, gameElements);
-            UI.renderInGameUpgradesUI(InGameUpgrades.getUpgradesState(), gameStats.cash, uiElements.upgradesList, handlePurchaseInGameUpgrade);
-        }
-    }
-
-    function handleActivatePower(powerId) {
-        const activated = Powers.tryActivatePower(powerId, gameElements, baseCore, gameStats, Date.now());
-        if (activated) {
-            // L'UI des pouvoirs sera mise à jour par la boucle `update` qui appelle `renderPowersUI`
-            UI.renderPowersUI(Powers.getPowersState(), uiElements.powersList, handleActivatePower, Date.now()); // Forcer un refresh immédiat
-        }
-    }
-
     function showRules() { alert(Config.RULES_TEXT); }
-
+    // --- Callbacks pour EventListeners (fonctions vides pour l'instant car non utilisées activement) ---
     function getMouseWorldPosCallback(mouseCanvasPos) {
         if(!mouseCanvasPos || typeof mouseCanvasPos.x === 'undefined') return null;
-        return { x: mouseCanvasPos.x - canvas.width / 2 + camera.x, y: mouseCanvasPos.y - canvas.height / 2 + camera.y };
-    }
-
-    function placeCubeAtGrid(gridX, gridY) {
-        if (currentBuildingToPlaceRef.building) return;
-        const key = `${gridX},${gridY}`;
-        if (gridX === 0 && gridY === 0 && baseCore.radius > 0) return; // Ne pas placer sur le noyau s'il existe
-        if (!gameElements.cubes.has(key) && !gameElements.buildings.has(key) && gameStats.cubesLeft > 0) {
-            gameElements.cubes.set(key, GameObjects.createCube({
-                cubeMaxHpPercentBonus: gameStats.cubeMaxHpPercentBonus,
-                cubeDamageBonus: gameStats.cubeDamageBonus
-            }));
-            gameStats.cubesLeft--; gameStats.cubesPlaced++;
-            UI.updateStatsUI(gameStats, gameElements);
-            lastPaintedGridCell.x = gridX; lastPaintedGridCell.y = gridY;
-        }
-    }
-
-    function handleCanvasMouseDownCallback(e) {
-        // Priorité au placement de bâtiment si un est sélectionné
-        if (currentBuildingToPlaceRef.building) {
-            const rect = canvas.getBoundingClientRect();
-            const mouseCanvasPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-            const worldPos = getMouseWorldPosCallback(mouseCanvasPos);
-            if (!worldPos) return;
-
-            const gridX = Math.floor(worldPos.x / Config.GRID_SIZE);
-            const gridY = Math.floor(worldPos.y / Config.GRID_SIZE);
-            const key = `${gridX},${gridY}`;
-
-            if (!gameElements.cubes.has(key) && !gameElements.buildings.has(key) && !(gridX === 0 && gridY === 0 && baseCore.radius > 0)) {
-                gameElements.buildings.set(key, { ...currentBuildingToPlaceRef.building });
-                UI.showNotification(`${currentBuildingToPlaceRef.itemConfig.name} construit !`, "success");
-                currentBuildingToPlaceRef.building = null; // Réinitialiser après placement
-                currentBuildingToPlaceRef.itemConfig = null;
-
-                // S'assurer que le jeu est bien en mode 'playing' après un placement réussi
-                // (au cas où le callback de fermeture du shop n'aurait pas suffi ou un autre état interfère)
-                if (gameState !== 'playing' && gameState !== 'gameOver' && gameState !== 'menu') {
-                    gameState = 'playing';
-                    if(!animationFrame) requestAnimationFrame(gameLoop);
-                }
-                // isShopOverlayOpen devrait déjà être false si le shop s'est fermé.
-
-            } else {
-                UI.showNotification("Impossible de construire ici !", "warning");
-                // Le bâtiment reste en main pour essayer de placer ailleurs
-            }
-            UI.updateStatsUI(gameStats, gameElements);
-            return;
-        }
-
-        // Placement de cube par clic simple (si pas de bâtiment en main et shop fermé)
-        if (gameState === 'playing' && !isShopOverlayOpen) {
-            const rect = canvas.getBoundingClientRect();
-            const mouseCanvasPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-            const worldPos = getMouseWorldPosCallback(mouseCanvasPos);
-            if (!worldPos) return;
-
-            lastPaintedGridCell.x = null;
-            lastPaintedGridCell.y = null;
-            const gridX = Math.floor(worldPos.x / Config.GRID_SIZE);
-            const gridY = Math.floor(worldPos.y / Config.GRID_SIZE);
-            placeCubeAtGrid(gridX, gridY);
-        }
-    }
-
-    function handleCanvasMouseUpCallback(e) {
-        lastPaintedGridCell.x = null; lastPaintedGridCell.y = null;
-    }
-
-    function handleCanvasMouseMovePaintCallback(e) {
-        // isMouseDownRef.value est vérifié dans eventListeners.js
-        // Ne pas peindre si le shop est l'UI active, ou si on place un bâtiment, ou si pas en jeu
-        if (gameState !== 'playing' || isShopOverlayOpen || currentBuildingToPlaceRef.building) return;
-
-        // ... (reste de la logique de dessin de cube par glisser, inchangée)
-        const rect = canvas.getBoundingClientRect();
-        const mouseCanvasPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-        const worldPos = getMouseWorldPosCallback(mouseCanvasPos);
-        if (!worldPos) return;
-        const gridX = Math.floor(worldPos.x / Config.GRID_SIZE); const gridY = Math.floor(worldPos.y / Config.GRID_SIZE);
-        if (gridX !== lastPaintedGridCell.x || gridY !== lastPaintedGridCell.y) {
-            placeCubeAtGrid(gridX, gridY);
-        }
-    }
-
-    function handleCanvasContextMenuCallback(e) {
-        e.preventDefault();
-        // Annuler le placement de bâtiment avec clic droit, même si le shop est "ouvert"
-        if (currentBuildingToPlaceRef.building) {
-            currentBuildingToPlaceRef.building = null; currentBuildingToPlaceRef.itemConfig = null;
-            UI.showNotification("Placement de bâtiment annulé.", "info");
-            // Le shop reste ouvert
-            return;
-        }
-
-        // Ne pas détruire si shop ouvert (et qu'on n'annulait pas un placement) ou si pas en jeu
-        if (gameState !== 'playing' || isShopOverlayOpen) return;
-
-        // ... (reste de la logique de destruction de cube/bâtiment, inchangée)
-        const rect = canvas.getBoundingClientRect(); const mouseCanvasPos = { x: e.clientX - rect.left, y: e.clientY - rect.top }; const worldPos = getMouseWorldPosCallback(mouseCanvasPos); if (!worldPos) return;
-        const gridX = Math.floor(worldPos.x / Config.GRID_SIZE); const gridY = Math.floor(worldPos.y / Config.GRID_SIZE); const key = `${gridX},${gridY}`;
-        if (gameElements.cubes.has(key)) {
-            gameElements.cubes.delete(key); gameStats.cubesLeft++;
-        } else if (gameElements.buildings.has(key)) {
-            const building = gameElements.buildings.get(key);
-            const shopItemConfig = Config.SHOP_ITEMS_CONFIG.find(item => item.buildingData && item.buildingData.type === building.type);
-            if (shopItemConfig && shopItemConfig.costBase) {
-                const refund = Math.floor(shopItemConfig.costBase * 0.5); // Pourrait être basé sur le niveau du bâtiment s'ils en ont
-                gameStats.cash += refund;
-                gameElements.buildings.delete(key);
-                UI.showNotification(`${building.type === 'generator' ? 'Générateur' : 'Bâtiment'} vendu (+${refund}💲)`, "info");
-            } else { UI.showNotification("Impossible de vendre (info manquante).", "warning"); }
-        }
-        UI.updateStatsUI(gameStats, gameElements);
-    }
-
+        return {
+            x: mouseCanvasPos.x - canvas.width / 2 + camera.x,
+            y: mouseCanvasPos.y - canvas.height / 2 + camera.y
+        };
+     }
+    function placeCubeAtGrid(gridX, gridY) { /* Logique de placement de cube viendra ici */ }
+    function handleCanvasMouseDownCallback(e) { /* Logique de clic pour placer/interagir viendra ici */ }
+    function handleCanvasMouseUpCallback(e) { /* Logique de relâchement du clic viendra ici */ }
+    function handleCanvasMouseMovePaintCallback(e) { /* Logique de dessin en glissant viendra ici */ }
+    function handleCanvasContextMenuCallback(e) { e.preventDefault(); /* Logique de clic droit viendra ici */ }
 
     function handleKeyDownCallback(e) {
+        keys[e.key.toLowerCase()] = true;
         const keyLower = e.key.toLowerCase();
-
-        // Les touches de mouvement WASD ne fonctionnent que si le shop n'est pas l'UI principale
-        // ET qu'on n'est pas en train de taper dans un champ de texte (si on en ajoute plus tard)
-        if (!isShopOverlayOpen) {
-            if (['w', 'a', 's', 'd'].includes(keyLower)) {
-                keys[keyLower] = true;
-            }
-        }
-
-        if (keyLower === 'p') { // Pause fonctionne toujours, et fermera le shop si ouvert
-            if (isShopOverlayOpen) {
-                closeShopAndResumePlay(); // D'abord fermer le shop
-            }
-            if (gameState === 'playing' || gameState === 'paused') { // Ensuite gérer la pause
-                 togglePause();
-            }
-        }
+        if (keyLower === 'p') { togglePause(); }
         if (keyLower === 'escape') {
-            if (currentBuildingToPlaceRef.building) { // Priorité : annuler placement
-                currentBuildingToPlaceRef.building = null; currentBuildingToPlaceRef.itemConfig = null;
-                UI.showNotification("Placement annulé.", "info");
-                // Le shop reste ouvert
-            } else if (isShopOverlayOpen) { // Ensuite : fermer le shop
-                closeShopAndResumePlay();
-            } else if (gameState === 'paused') { // Ensuite : reprendre le jeu
-                resumeGameFromSomeMenu();
-            } else if (gameState === 'playing') { // Enfin : mettre en pause
-                togglePause();
-            }
+            const currentState = GameState.getGameState();
+            if (currentState === GameState.GameStates.PAUSED) resumeGameFromPause();
+            else if (currentState === GameState.GameStates.WAVE_IN_PROGRESS || currentState === GameState.GameStates.WAVE_PREPARATION) togglePause();
+            // Ajouter une condition pour fermer le shop si ouvert avec Echap plus tard
         }
     }
-    // ... (handleKeyUpCallback, EventListeners.setupEventListeners, resizeCanvasAndRender, goToMenu inchangés)
-    function handleKeyUpCallback(e) { keys[e.key.toLowerCase()] = false; }
+    function handleKeyUpCallback(e) {
+        keys[e.key.toLowerCase()] = false;
+    }
 
+
+    // Initial Setup
+    // L'erreur était probablement ici, car lastMousePosRef et isMouseDownRef n'étaient pas déclarés avant cet appel.
     EventListeners.setupEventListeners(
-        canvas, keys, lastMousePosRef, isMouseDownRef,
+        canvas,
+        keys,
+        lastMousePosRef,    // Maintenant déclaré
+        isMouseDownRef,     // Maintenant déclaré
         getMouseWorldPosCallback,
         handleCanvasMouseDownCallback,
         handleCanvasMouseUpCallback,
         handleCanvasMouseMovePaintCallback,
         handleCanvasContextMenuCallback,
-        handleKeyDownCallback, handleKeyUpCallback, resizeCanvasAndRender,
+        handleKeyDownCallback,
+        handleKeyUpCallback,
+        resizeCanvasAndRender,
         uiElements,
-        { startGame, showRules, restartGame, goToMenu, resumeGame: resumeGameFromSomeMenu, openShop, closeShop: () => closeShopAndResumePlay(true), togglePause }
+        { // Callbacks pour les boutons de l'UI
+            startGame: startGame,
+            showRules: showRules,
+            restartGame: restartGame,
+            goToMenu: goToMenu,
+            resumeGame: resumeGameFromPause,
+            openShop: () => {}, // Placeholder, sera implémenté plus tard
+            closeShop: () => {},// Placeholder
+            togglePause: togglePause
+        }
     );
-    resizeCanvasAndRender();
-    goToMenu();
+
+    resizeCanvasAndRender(); // Appel initial
+    goToMenu(); // Démarrer au menu
+    console.log("Initialisation de main.js terminée.");
 });

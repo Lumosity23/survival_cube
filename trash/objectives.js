@@ -1,6 +1,6 @@
 // js/objectives.js
-import * as Config from './config.js'; // Assure-toi que Config est bien importé
-import * as UI from './ui.js';
+import * as Config from '../config.js'; // Assure-toi que Config est bien importé
+import * as UI from '../ui/ui.js';
 
 let activeObjectivesList = []; // Liste interne des objectifs actifs
 

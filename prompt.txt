@@ -5,3 +5,8 @@ ok voici mes idee, vis a vis de ca : da'bors on dois tou autant travailler sur l
   comme un effet de degats touge autours du jeu qnaon on est en vague de boss, ensuite ajouter un un personnage, la camera qu;on joue est
    un person qui dois faire evoluer sa base, on va odnc developper la partie developpents, avec les bank les tourelles les creeateur de cube,
  tout d'ois avoir un abres d'amelioration ce qui pousse le jouerues a faire de choix ce qui lui donne un effet de controle sur son jeu
+
+
+ ok mais saurtais tu me reecrire tout les fichier de base pour voir si cela fonctionne bien ? les reecrire commpletement ne pas mettre 
+ parfois inchanger ou commanteair  : ces focntione inchanger, bref tout me reecrire pour remetre en 
+ place un projet propre. attnetion pas besoin de reecrie les fichier inutils pour l;insatn seulemt cweux qui permet au jeu de fontionnner
